@@ -1,0 +1,12 @@
+{
+  "name": "file-explorer",
+  "displayName": "Session File Explorer",
+  "description": "Explore files across session workspaces, project folders, brain artifacts, and MCP-registered folders with native file preview.",
+  "version": "0.1.1",
+  "logo": "assets/logo.svg",
+  "suggestedPrompts": [
+    "Register a folder in the session file explorer",
+    "List all root folders tracked in this conversation",
+    "Focus a specific directory in the file explorer panel"
+  ]
+}

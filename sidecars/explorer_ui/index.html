@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>File Explorer</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div class="header-top">
+        <div class="title-group">
+          <svg class="title-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M3 6.5C3 5.39543 3.89543 4.5 5 4.5H9.17157C9.70201 4.5 10.2107 4.71071 10.5858 5.08579L12.4142 6.91421C12.7893 7.28929 13.298 7.5 13.8284 7.5H19C20.1046 7.5 21 8.39543 21 9.5V17.5C21 18.6046 20.1046 19.5 19 19.5H5C3.89543 19.5 3 18.6046 3 17.5V6.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+          </svg>
+          <h1 class="app-title">File Explorer</h1>
+          <span id="conv-badge" class="conv-badge hidden" title="Active Conversation ID"></span>
+          <span id="fork-badge" class="conv-badge fork hidden" title="Forked from parent conversation"></span>
+        </div>
+        <div class="header-actions">
+          <label class="auto-toggle" title="Auto-refresh every 4 seconds">
+            <input type="checkbox" id="chk-live" checked>
+            <span class="live-dot" aria-hidden="true"></span>
+            <span>Live</span>
+          </label>
+          <button id="btn-refresh" type="button" class="icon-btn" title="Refresh root folders &amp; file tree now">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M13.5 8a5.5 5.5 0 1 1-1.4-3.66M13.5 2.5v2.25h-2.25" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Top Clickable Root Folder Rows -->
+      <div class="root-selector-box">
+        <div class="root-selector-header">
+          <span class="root-selector-label">
+            Root Folders
+            <span id="count-roots" class="badge-count">0</span>
+          </span>
+          <span class="root-mcp-hint" title="Use folder_register / folder_focus / folder_unregister MCP tools to manage session folders">
+            MCP: <code>folder_*</code>
+          </span>
+        </div>
+        <div id="root-list" class="root-list" role="listbox" aria-label="Associated root folders"></div>
+      </div>
+
+      <!-- Filter / Search & Root Actions Toolbar -->
+      <div id="explorer-toolbar" class="explorer-toolbar hidden">
+        <div class="toolbar-row">
+          <input
+            id="search-input"
+            type="search"
+            class="file-search"
+            placeholder="Filter or search files in active root…"
+            autocomplete="off"
+          >
+          <label class="dotfile-toggle" title="Show hidden dotfiles (.*)">
+            <input type="checkbox" id="chk-hidden" checked>
+            <span>.* Hidden</span>
+          </label>
+        </div>
+        <div class="active-root-actions">
+          <button id="btn-new-file" type="button" class="ghost-btn sm" title="Create new file in selected folder">+ File</button>
+          <button id="btn-new-folder" type="button" class="ghost-btn sm" title="Create new folder in selected folder">+ Folder</button>
+          <button id="btn-copy-root" type="button" class="ghost-btn sm" title="Copy active root path">Copy Root</button>
+          <button id="btn-collapse-all" type="button" class="ghost-btn sm" title="Collapse all expanded folders">Collapse All</button>
+        </div>
+      </div>
+
+      <!-- Inline Mutation Prompt / Confirmation Bar -->
+      <div id="mutation-bar" class="mutation-bar hidden" role="region" aria-label="File action prompt"></div>
+    </header>
+
+    <main class="explorer-body">
+      <div id="tree-container" class="tree-container" role="tree" aria-label="File explorer tree">
+        <div class="empty-state">Loading session root folders…</div>
+      </div>
+    </main>
+
+    <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+  </div>
+  <script src="/app.js"></script>
+</body>
+</html>

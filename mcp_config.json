@@ -1,0 +1,24 @@
+{
+  "mcpServers": {
+    "folder": {
+      "command": "node",
+      "args": [
+        "${PLUGIN_ROOT}/mcp/folder_mcp.mjs"
+      ],
+      "tools": {
+        "folder_register": {
+          "eager": true
+        },
+        "folder_focus": {
+          "eager": true
+        },
+        "folder_unregister": {
+          "eager": true
+        },
+        "folder_list": {
+          "eager": true
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "command": "node",
+  "args": ["main.mjs"],
+  "restart_policy": "always",
+  "display_name": "File Explorer",
+  "description": "Explore files across session workspaces, project folders, brain artifacts, and MCP-registered folders with native file preview",
+  "has_web_ui": true,
+  "ui_config": {
+    "display_name": "File Explorer",
+    "views": [
+      {
+        "path": "/",
+        "entrypoint": "SIDECAR_UI_ENTRYPOINT_AUX_PANE",
+        "title": "File Explorer"
+      },
+      {
+        "path": "/fullscreen",
+        "entrypoint": "SIDECAR_UI_ENTRYPOINT_FULL_PANE",
+        "title": "File Explorer (Full)"
+      }
+    ]
+  }
+}
