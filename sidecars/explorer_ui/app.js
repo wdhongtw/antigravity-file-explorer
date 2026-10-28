@@ -425,16 +425,17 @@
       const icon = entry.isDirectory ? folderSvg(isExpanded) : fileSvg();
       const symlinkBadge = entry.isSymlink ? '<span class="symlink-badge">symlink</span>' : '';
 
+      const relCopyPath = entry.relPath || entry.name;
       const actionsHtml = entry.isDirectory
         ? `
           <button type="button" class="row-btn" data-action="new-file" data-path="${esc(entry.path)}" title="New file in ${esc(entry.name)}">+File</button>
           <button type="button" class="row-btn" data-action="new-folder" data-path="${esc(entry.path)}" title="New folder in ${esc(entry.name)}">+Dir</button>
-          <button type="button" class="row-btn" data-action="copy-path" data-path="${esc(entry.path)}" title="Copy path">Copy</button>
+          <button type="button" class="row-btn" data-action="copy-path" data-path="${esc(relCopyPath)}" title="Copy relative path">Copy</button>
           <button type="button" class="row-btn" data-action="rename" data-path="${esc(entry.path)}" data-name="${esc(entry.name)}" title="Rename">Ren</button>
           <button type="button" class="row-btn danger" data-action="delete" data-path="${esc(entry.path)}" data-name="${esc(entry.name)}" title="Delete">Del</button>`
         : `
           <button type="button" class="row-btn" data-action="open-file" data-path="${esc(entry.path)}" data-uri="${esc(entry.uri)}" title="Open in native File Preview">Open</button>
-          <button type="button" class="row-btn" data-action="copy-path" data-path="${esc(entry.path)}" title="Copy path">Copy</button>
+          <button type="button" class="row-btn" data-action="copy-path" data-path="${esc(relCopyPath)}" title="Copy relative path">Copy</button>
           <button type="button" class="row-btn" data-action="rename" data-path="${esc(entry.path)}" data-name="${esc(entry.name)}" title="Rename">Ren</button>
           <button type="button" class="row-btn danger" data-action="delete" data-path="${esc(entry.path)}" data-name="${esc(entry.name)}" title="Delete">Del</button>`;
 
@@ -511,7 +512,7 @@
               <div class="row-actions">
                 ${!entry.isDirectory ? `<button type="button" class="row-btn" data-action="open-file" data-path="${esc(entry.path)}" data-uri="${esc(entry.uri)}">Open</button>` : ''}
                 <button type="button" class="row-btn" data-action="reveal-in-tree" data-path="${esc(entry.path)}" data-isdir="${entry.isDirectory ? '1' : '0'}">Reveal</button>
-                <button type="button" class="row-btn" data-action="copy-path" data-path="${esc(entry.path)}">Copy</button>
+                <button type="button" class="row-btn" data-action="copy-path" data-path="${esc(entry.relPath || entry.name)}" title="Copy relative path">Copy</button>
               </div>
             </div>
           </div>`;
@@ -838,7 +839,7 @@
       if (action === 'copy-path') {
         try {
           await navigator.clipboard.writeText(targetPath);
-          showToast('Copied path');
+          showToast(`Copied relative path: ${targetPath}`);
         } catch {
           showToast(targetPath);
         }
