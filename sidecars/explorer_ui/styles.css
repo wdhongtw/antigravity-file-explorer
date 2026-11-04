@@ -320,12 +320,18 @@ body {
 }
 
 .root-row-path {
+  flex: 1;
+  min-width: 0;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 10.5px;
   color: var(--muted-foreground, #a1a1aa);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.root-copy-btn {
+  flex-shrink: 0;
 }
 
 .root-row.active .root-row-path {
@@ -391,6 +397,10 @@ body {
   align-items: center;
   gap: 4px;
   flex-wrap: wrap;
+}
+
+.collapse-all-btn {
+  margin-left: auto;
 }
 
 .ghost-btn {

@@ -263,11 +263,11 @@
             : '';
 
         return `
-          <button
-            type="button"
+          <div
             class="root-row${isSelected ? ' active' : ''}"
             data-select-root="${esc(r.path)}"
             role="option"
+            tabindex="0"
             aria-selected="${isSelected ? 'true' : 'false'}"
             title="${esc(r.path)}"
           >
@@ -282,8 +282,15 @@
             </div>
             <div class="root-row-bottom">
               <code class="root-row-path">${esc(r.displayPath)}</code>
+              <button
+                type="button"
+                class="row-btn root-copy-btn"
+                data-action="copy-root-path"
+                data-path="${esc(r.path)}"
+                title="Copy absolute root path"
+              >Copy</button>
             </div>
-          </button>`;
+          </div>`;
       })
       .join('');
 
@@ -784,12 +791,6 @@
 
   // Event Delegation
   document.addEventListener('click', async (e) => {
-    const rootRow = e.target.closest('[data-select-root]');
-    if (rootRow) {
-      await selectRootFolder(rootRow.dataset.selectRoot);
-      return;
-    }
-
     if (e.target.closest('#btn-clear-search')) {
       state.searchQuery = '';
       state.searchResults = null;
@@ -818,6 +819,15 @@
 
       if (action === 'open-file') {
         openInNativeFileViewer(targetPath, actionBtn.dataset.uri || '');
+        return;
+      }
+      if (action === 'copy-root-path') {
+        try {
+          await navigator.clipboard.writeText(targetPath);
+          showToast(`Copied root path: ${targetPath}`);
+        } catch {
+          showToast(targetPath);
+        }
         return;
       }
       if (action === 'copy-path') {
@@ -861,6 +871,12 @@
         renderMutationBar();
         return;
       }
+    }
+
+    const rootRow = e.target.closest('[data-select-root]');
+    if (rootRow) {
+      await selectRootFolder(rootRow.dataset.selectRoot);
+      return;
     }
 
     const searchRow = e.target.closest('[data-search-path]');
@@ -954,16 +970,6 @@
       initialValue: '',
     };
     renderMutationBar();
-  });
-
-  $('btn-copy-root')?.addEventListener('click', async () => {
-    if (!state.selectedRootPath) return;
-    try {
-      await navigator.clipboard.writeText(state.selectedRootPath);
-      showToast('Copied root folder path');
-    } catch {
-      showToast(state.selectedRootPath);
-    }
   });
 
   $('btn-collapse-all')?.addEventListener('click', () => {
