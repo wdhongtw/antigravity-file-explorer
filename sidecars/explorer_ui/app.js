@@ -566,9 +566,13 @@
 
   async function loadDirectory(rootPath, dirPath, { silent = false } = {}) {
     if (!rootPath || !dirPath) return;
-    if (!silent) {
-      state.loadingDirs.add(dirPath);
-      renderExplorerBody();
+    let loadingTimer = null;
+    const key = cacheKey(rootPath, dirPath);
+    if (!silent && !state.dirCache.has(key)) {
+      loadingTimer = setTimeout(() => {
+        state.loadingDirs.add(dirPath);
+        renderExplorerBody();
+      }, 120);
     }
     try {
       const res = await apiGet('/api/list', {
@@ -579,13 +583,14 @@
       if (res.existsOnDisk === false && dirPath !== rootPath) {
         pruneExpandedAndCachePrefix(rootPath, dirPath);
       } else {
-        state.dirCache.set(cacheKey(rootPath, dirPath), res.entries || []);
+        state.dirCache.set(key, res.entries || []);
       }
     } catch (err) {
       if (!silent) {
         showToast(`Failed to list folder: ${err.message}`);
       }
     } finally {
+      if (loadingTimer) clearTimeout(loadingTimer);
       state.loadingDirs.delete(dirPath);
       renderExplorerBody();
     }
@@ -908,7 +913,11 @@
           renderExplorerBody();
         } else {
           exp.add(path);
-          await loadDirectory(state.selectedRootPath, path, { silent: false });
+          const hasCached = state.dirCache.has(cacheKey(state.selectedRootPath, path));
+          if (hasCached) {
+            renderExplorerBody();
+          }
+          await loadDirectory(state.selectedRootPath, path, { silent: hasCached });
         }
       } else {
         renderExplorerBody();
