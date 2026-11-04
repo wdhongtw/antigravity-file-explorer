@@ -369,12 +369,6 @@ body {
   color: var(--primary-foreground, #ffffff);
 }
 
-.source-pill.src-focused {
-  background: var(--fe-info-bg);
-  color: var(--fe-info-fg);
-  border: 1px solid color-mix(in srgb, var(--fe-info-fg) 40%, transparent);
-}
-
 .source-pill.src-inherited {
   background: var(--secondary, rgba(128, 128, 128, 0.18));
   color: var(--muted-foreground, #a1a1aa);

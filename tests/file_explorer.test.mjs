@@ -92,7 +92,6 @@ test('getSessionFolderState aggregates workspace, project, MCP, and brain folder
               argumentsJson: JSON.stringify({
                 path: mcpDir1,
                 label: 'Inherited Folder',
-                focus: true,
               }),
             },
           },
@@ -107,7 +106,6 @@ test('getSessionFolderState aggregates workspace, project, MCP, and brain folder
               argumentsJson: JSON.stringify({
                 path: mcpDir2,
                 label: 'Post-Fork Folder',
-                focus: true,
               }),
             },
           },
@@ -123,7 +121,6 @@ test('getSessionFolderState aggregates workspace, project, MCP, and brain folder
 
     assert.equal(state.isForkedSession, true);
     assert.equal(state.parentConversationId, 'parent-conv-999');
-    assert.equal(state.focusedPath, mcpDir2);
     assert.equal(state.folders.length, 5);
 
     const wsEntry = state.folders.find((f) => f.path === wsDir);
@@ -137,7 +134,6 @@ test('getSessionFolderState aggregates workspace, project, MCP, and brain folder
 
     const mcp2Entry = state.folders.find((f) => f.path === mcpDir2);
     assert.ok(mcp2Entry);
-    assert.equal(mcp2Entry.isFocused, true);
     assert.equal(mcp2Entry.inheritedFromFork, false);
 
     const brainEntry = state.folders.find((f) => f.path === brainDir);
@@ -148,7 +144,7 @@ test('getSessionFolderState aggregates workspace, project, MCP, and brain folder
   }
 });
 
-test('folder_unregister removes folder and shifts focus', async () => {
+test('folder_unregister removes folder from session state', async () => {
   const trajectoryData = {
     ok: true,
     metadata: {},
@@ -197,7 +193,6 @@ test('folder_unregister removes folder and shifts focus', async () => {
 
   assert.equal(state.folders.length, 1);
   assert.equal(state.folders[0].path, '/tmp/dir-a');
-  assert.equal(state.focusedPath, '/tmp/dir-a');
 });
 
 test('extractFolderStepAction supports CLI fallback in run_command steps', () => {

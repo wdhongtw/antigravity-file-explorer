@@ -18,8 +18,6 @@
     projectName: '',
     isForkedSession: false,
     parentConversationId: '',
-    focusedPath: '',
-    lastFocusedStep: -1,
     roots: [],
     selectedRootPath: '',
     selectedItemPath: '',
@@ -251,9 +249,6 @@
         const rightBadges = [];
         if (isSelected) {
           rightBadges.push('<span class="source-pill src-active">Active</span>');
-        }
-        if (r.isFocused && !isSelected) {
-          rightBadges.push('<span class="source-pill src-focused" title="Focused session folder">Focused</span>');
         }
         if (r.inheritedFromFork) {
           rightBadges.push('<span class="source-pill src-inherited" title="Inherited from parent conversation fork">Inherited</span>');
@@ -662,12 +657,8 @@
       state.roots = data.folders || [];
       state.projectId = data.projectId || '';
       state.projectName = data.projectName || '';
-      state.focusedPath = data.focusedPath || '';
       state.isForkedSession = Boolean(data.isForkedSession);
       state.parentConversationId = data.parentConversationId || '';
-
-      const newFocusedStep = Number(data.focusedStep ?? -1);
-      const newFocusedPath = data.focusedPath || '';
 
       if (state.roots.length === 0) {
         state.selectedRootPath = '';
@@ -676,15 +667,8 @@
         return;
       }
 
-      if (
-        newFocusedPath &&
-        newFocusedStep > state.lastFocusedStep &&
-        state.roots.some((r) => r.path === newFocusedPath)
-      ) {
-        state.lastFocusedStep = newFocusedStep;
-        state.selectedRootPath = newFocusedPath;
-      } else if (!state.roots.some((r) => r.path === state.selectedRootPath)) {
-        state.selectedRootPath = newFocusedPath || state.roots[0].path;
+      if (!state.roots.some((r) => r.path === state.selectedRootPath)) {
+        state.selectedRootPath = state.roots[0].path;
       }
 
       renderHeaderAndRoots();

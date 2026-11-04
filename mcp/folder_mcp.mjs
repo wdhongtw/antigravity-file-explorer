@@ -1,7 +1,7 @@
 /**
  * @fileoverview Stdio MCP Server for `file-explorer`.
  *
- * Exposes `folder_*` tools so the agent can register, focus, unregister,
+ * Exposes `folder_*` tools so the agent can register, unregister,
  * or list additional on-premise folders for the active chat session's File Explorer.
  *
  * All session folder state is persisted natively inside the per-conversation
@@ -16,14 +16,14 @@ import {
 
 const SERVER_INFO = {
   name: 'folder',
-  version: '0.1.1',
+  version: '0.1.2',
 };
 
 const TOOLS = [
   {
     name: 'folder_register',
     description:
-      'Register an additional on-premise directory in the current chat session File Explorer (and focus it by default). Tracked purely in per-session trajectory metadata and inherited across client-side session forks.',
+      'Register an additional on-premise directory in the current chat session File Explorer. Tracked purely in per-session trajectory metadata and inherited across client-side session forks.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -35,33 +35,6 @@ const TOOLS = [
           type: 'string',
           description:
             'Optional short human-readable label describing what this folder is used for in this session.',
-        },
-        focus: {
-          type: 'boolean',
-          description:
-            'Whether to make this folder the currently selected root folder in the File Explorer UI (defaults to true).',
-        },
-      },
-      required: ['path'],
-    },
-    _meta: {
-      'antigravity/alwaysLoad': true,
-    },
-  },
-  {
-    name: 'folder_focus',
-    description:
-      'Set the active focused root directory in the File Explorer for the current chat session (registers it in the session metadata if not already tracked).',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        path: {
-          type: 'string',
-          description: 'Path to the directory to focus as the active root in the File Explorer.',
-        },
-        label: {
-          type: 'string',
-          description: 'Optional updated short label for this folder.',
         },
       },
       required: ['path'],
@@ -139,16 +112,12 @@ async function handleToolCall(params) {
     process.env.ANTIGRAVITY_CONVERSATION_ID ||
     '';
 
-  const match = /(?:^|_)(folder_(?:register|focus|unregister|list))$/.exec(
+  const match = /(?:^|_)(folder_(?:register|unregister|list))$/.exec(
     rawToolName
   );
   const toolName = match ? match[1] : rawToolName;
 
-  if (
-    toolName === 'folder_register' ||
-    toolName === 'folder_focus' ||
-    toolName === 'folder_unregister'
-  ) {
+  if (toolName === 'folder_register' || toolName === 'folder_unregister') {
     const folderPath = normalizeFolderPath(args.path || '');
     if (!folderPath) {
       return {
@@ -165,18 +134,13 @@ async function handleToolCall(params) {
     const state = await getSessionFolderState(conversationId, pendingAction);
 
     const actionVerb =
-      toolName === 'folder_unregister'
-        ? 'Unregistered'
-        : toolName === 'folder_focus'
-        ? 'Focused'
-        : 'Registered';
+      toolName === 'folder_unregister' ? 'Unregistered' : 'Registered';
 
     const payload = {
       ok: true,
       action: toolName,
       message: `${actionVerb} folder ${folderPath} in session ${conversationId || '(active)'}`,
       conversationId,
-      focusedPath: state.focusedPath,
       trackedCount: state.folders.length,
       folders: state.folders,
     };
@@ -196,7 +160,6 @@ async function handleToolCall(params) {
       projectName: state.projectName,
       isForkedSession: state.isForkedSession,
       parentConversationId: state.parentConversationId,
-      focusedPath: state.focusedPath,
       trackedCount: state.folders.length,
       folders: state.folders,
     };

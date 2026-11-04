@@ -12,14 +12,12 @@ Preview (`fileView`) integration.
        `workspaces`)
     2. **Project Folders** (`~/.gemini/config/projects/<project_id>.json`
        `projectResources`)
-    3. **Session MCP Registered Folders** (`folder_register` / `folder_focus` /
+    3. **Session MCP Registered Folders** (`folder_register` /
        `folder_unregister` steps in the conversation trajectory)
     4. **Conversation Brain & Artifacts** (`brain/<conversation-id>`)
 - **Per-Chat Session Trajectory Metadata (`folder_*` MCP Tools)**:
-  - `folder_register`: Register and optionally focus an additional on-premise
-    directory for the current conversation (`path`, `label`, `focus`).
-  - `folder_focus`: Switch the active focused root directory in the File Explorer
-    UI.
+  - `folder_register`: Register an additional on-premise directory for the
+    current conversation (`path`, `label`).
   - `folder_unregister`: Remove a directory from the session's File Explorer
     root list without modifying files on disk.
   - `folder_list`: List all root folders tracked in the current session

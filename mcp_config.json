@@ -9,9 +9,6 @@
         "folder_register": {
           "eager": true
         },
-        "folder_focus": {
-          "eager": true
-        },
         "folder_unregister": {
           "eager": true
         },
