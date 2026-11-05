@@ -394,19 +394,38 @@ body {
   outline: 1px solid var(--primary, #3b82f6);
 }
 
-/* Inline Mutation Bar */
-.mutation-bar {
+/* Floating Modal Overlay for File Mutations (Zero Layout Shift) */
+.mutation-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 56px 12px 12px;
+  background: rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(1.5px);
+}
+
+.mutation-card {
+  width: 100%;
+  max-width: 340px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 8px 10px;
-  border-radius: 6px;
-  background: var(--secondary, rgba(128, 128, 128, 0.14));
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 7px;
+  background: var(--card, #1c1c21);
   border: 1px solid var(--primary, #3b82f6);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.38);
+}
+
+.mutation-card.danger-card {
+  border-color: color-mix(in srgb, var(--fe-del-fg) 65%, var(--border, transparent));
 }
 
 .mutation-title {
-  font-size: 11px;
+  font-size: 11.5px;
   font-weight: 600;
   color: var(--foreground, #e4e4e7);
   overflow: hidden;
@@ -423,6 +442,7 @@ body {
 .mutation-controls {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 6px;
 }
 
@@ -436,6 +456,10 @@ body {
   color: var(--foreground, inherit);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 11px;
+}
+
+.mutation-input:focus {
+  outline: 1px solid var(--primary, #3b82f6);
 }
 
 /* Explorer Tree Body */
@@ -461,8 +485,9 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 6px;
+  height: 24px;
   min-height: 24px;
-  padding: 3px 6px;
+  padding: 0 6px;
   border-radius: 5px;
   cursor: pointer;
   user-select: none;
@@ -568,7 +593,8 @@ body {
   display: inline-flex;
 }
 
-.tree-row:hover .file-size {
+.tree-row:hover .file-size,
+.tree-row.selected .file-size {
   display: none;
 }
 
@@ -577,10 +603,14 @@ body {
   background: var(--card, #1c1c21);
   color: var(--foreground, #e4e4e7);
   border-radius: 3px;
-  padding: 1px 5px;
+  height: 18px;
+  padding: 0 5px;
   font-size: 10px;
-  line-height: 1.15;
+  line-height: 16px;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .row-btn:hover {

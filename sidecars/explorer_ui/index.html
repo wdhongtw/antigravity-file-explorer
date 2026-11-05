@@ -42,9 +42,6 @@
           <button id="btn-collapse-all" type="button" class="ghost-btn sm collapse-all-btn" title="Collapse all expanded folders">Collapse All</button>
         </div>
       </div>
-
-      <!-- Inline Mutation Prompt / Confirmation Bar -->
-      <div id="mutation-bar" class="mutation-bar hidden" role="region" aria-label="File action prompt"></div>
     </header>
 
     <main class="explorer-body">
@@ -52,6 +49,9 @@
         <div class="empty-state">Loading session root folders…</div>
       </div>
     </main>
+
+    <!-- Floating Modal Overlay for Create / Rename / Delete (Zero Layout Shift) -->
+    <div id="mutation-bar" class="mutation-overlay hidden" role="dialog" aria-modal="true" aria-label="File action prompt"></div>
 
     <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
   </div>

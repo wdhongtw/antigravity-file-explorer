@@ -183,6 +183,19 @@
     }
   }
 
+  function removeCachedChildEntry(rootPath, childPath) {
+    const idx = childPath.lastIndexOf('/');
+    const parentDir = idx > 0 ? childPath.slice(0, idx) : rootPath;
+    const key = cacheKey(rootPath, parentDir);
+    const list = state.dirCache.get(key);
+    if (Array.isArray(list)) {
+      state.dirCache.set(
+        key,
+        list.filter((entry) => entry.path !== childPath)
+      );
+    }
+  }
+
   /**
    * Opens a file in the built-in AuxPane File Preview (`fileView`).
    */
@@ -323,11 +336,14 @@
           ? m.targetPath.slice(state.selectedRootPath.length).replace(/^\/+/, '')
           : m.targetName;
       bar.innerHTML = `
-        <div class="mutation-title">Delete <code>${esc(relItem)}</code> permanently?</div>
-        <div class="mutation-controls">
-          <button type="button" id="btn-mutation-confirm" class="ghost-btn danger">Delete</button>
-          <button type="button" id="btn-mutation-cancel" class="ghost-btn">Cancel</button>
+        <div class="mutation-card danger-card">
+          <div class="mutation-title">Delete <code>${esc(relItem)}</code> permanently?</div>
+          <div class="mutation-controls">
+            <button type="button" id="btn-mutation-confirm" class="ghost-btn danger">Delete</button>
+            <button type="button" id="btn-mutation-cancel" class="ghost-btn">Cancel</button>
+          </div>
         </div>`;
+      $('btn-mutation-confirm')?.focus();
       return;
     }
 
@@ -348,18 +364,20 @@
     const confirmLabel = m.mode === 'rename' ? 'Rename' : 'Create';
 
     bar.innerHTML = `
-      <div class="mutation-title">${titleText}</div>
-      <div class="mutation-controls">
-        <input
-          id="mutation-input"
-          type="text"
-          class="mutation-input"
-          placeholder="${esc(placeholder)}"
-          value="${esc(m.initialValue || '')}"
-          autocomplete="off"
-        >
-        <button type="button" id="btn-mutation-confirm" class="ghost-btn primary">${confirmLabel}</button>
-        <button type="button" id="btn-mutation-cancel" class="ghost-btn">Cancel</button>
+      <div class="mutation-card">
+        <div class="mutation-title">${titleText}</div>
+        <div class="mutation-controls">
+          <input
+            id="mutation-input"
+            type="text"
+            class="mutation-input"
+            placeholder="${esc(placeholder)}"
+            value="${esc(m.initialValue || '')}"
+            autocomplete="off"
+          >
+          <button type="button" id="btn-mutation-confirm" class="ghost-btn primary">${confirmLabel}</button>
+          <button type="button" id="btn-mutation-cancel" class="ghost-btn">Cancel</button>
+        </div>
       </div>`;
 
     const inputEl = $('mutation-input');
@@ -550,7 +568,7 @@
     );
   }
 
-  async function loadDirectory(rootPath, dirPath, { silent = false } = {}) {
+  async function loadDirectory(rootPath, dirPath, { silent = false, skipRender = false } = {}) {
     if (!rootPath || !dirPath) return;
     let loadingTimer = null;
     const key = cacheKey(rootPath, dirPath);
@@ -578,7 +596,9 @@
     } finally {
       if (loadingTimer) clearTimeout(loadingTimer);
       state.loadingDirs.delete(dirPath);
-      renderExplorerBody();
+      if (!skipRender) {
+        renderExplorerBody();
+      }
     }
   }
 
@@ -592,8 +612,11 @@
     const expandedSet = getExpandedSet(rootPath);
     expandedSet.add(rootPath);
     await Promise.all(
-      [...expandedSet].map((dirPath) => loadDirectory(rootPath, dirPath, { silent }))
+      [...expandedSet].map((dirPath) =>
+        loadDirectory(rootPath, dirPath, { silent, skipRender: true })
+      )
     );
+    renderExplorerBody();
   }
 
   let searchTimer = null;
@@ -719,6 +742,7 @@
           path: m.targetPath,
         });
         pruneExpandedAndCachePrefix(state.selectedRootPath, m.targetPath);
+        removeCachedChildEntry(state.selectedRootPath, m.targetPath);
         showToast(`Deleted ${m.targetName}`);
         if (
           state.selectedItemPath === m.targetPath ||
@@ -771,7 +795,8 @@
 
       state.mutation = null;
       renderMutationBar();
-      await refreshExpandedDirectories(state.selectedRootPath, { silent: false });
+      renderExplorerBody();
+      await refreshExpandedDirectories(state.selectedRootPath, { silent: true });
       if (state.searchQuery.trim()) {
         triggerSearch();
       }
@@ -782,6 +807,12 @@
 
   // Event Delegation
   document.addEventListener('click', async (e) => {
+    if (e.target.id === 'mutation-bar') {
+      state.mutation = null;
+      renderMutationBar();
+      return;
+    }
+
     if (e.target.closest('#btn-clear-search')) {
       state.searchQuery = '';
       state.searchResults = null;

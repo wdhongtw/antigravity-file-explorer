@@ -95,9 +95,6 @@
           <button id="btn-delete-sel" type="button" class="sb-btn danger sm" disabled title="Delete selected items">Delete</button>
         </div>
       </div>
-
-      <!-- Inline Prompt Bar for Create / Rename / Zip / Unzip / Chmod / Delete / Bookmark -->
-      <div id="prompt-bar" class="sb-prompt-bar hidden" role="region" aria-label="Action prompt"></div>
     </header>
 
     <!-- Main 3-Pane Workspace -->
@@ -167,6 +164,9 @@
         </div>
       </aside>
     </div>
+
+    <!-- Floating Modal Overlay for Create / Rename / Zip / Unzip / Chmod / Delete / Bookmark (Zero Layout Shift) -->
+    <div id="prompt-bar" class="sb-prompt-overlay hidden" role="dialog" aria-modal="true" aria-label="Action prompt"></div>
 
     <div id="toast" class="sb-toast hidden" role="status" aria-live="polite"></div>
   </div>

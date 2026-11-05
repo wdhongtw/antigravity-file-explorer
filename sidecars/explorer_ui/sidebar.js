@@ -463,39 +463,47 @@
           ? `<code>${esc(p.paths[0].split('/').pop() || p.paths[0])}</code>`
           : `<strong>${p.paths.length} items</strong>`;
       bar.innerHTML = `
-        <div class="sb-prompt-title">Permanently delete ${label}?</div>
-        <div class="sb-prompt-controls">
-          <button type="button" id="btn-prompt-confirm" class="sb-btn danger solid">Delete</button>
-          <button type="button" id="btn-prompt-cancel" class="sb-btn">Cancel</button>
+        <div class="sb-prompt-card danger-card">
+          <div class="sb-prompt-title">Permanently delete ${label}?</div>
+          <div class="sb-prompt-controls">
+            <button type="button" id="btn-prompt-confirm" class="sb-btn danger solid">Delete</button>
+            <button type="button" id="btn-prompt-cancel" class="sb-btn">Cancel</button>
+          </div>
         </div>`;
+      $('btn-prompt-confirm')?.focus();
       return;
     }
 
     if (p.mode === 'extract') {
       bar.innerHTML = `
-        <div class="sb-prompt-title">Extract archive <code>${esc(p.archiveName)}</code></div>
-        <div class="sb-prompt-controls">
-          <label class="sb-toggle">
-            <input type="checkbox" id="prompt-subfolder" checked>
-            <span>Extract into new subfolder</span>
-          </label>
-          <button type="button" id="btn-prompt-confirm" class="sb-btn primary">Extract</button>
-          <button type="button" id="btn-prompt-cancel" class="sb-btn">Cancel</button>
+        <div class="sb-prompt-card">
+          <div class="sb-prompt-title">Extract archive <code>${esc(p.archiveName)}</code></div>
+          <div class="sb-prompt-controls">
+            <label class="sb-toggle" style="margin-right:auto">
+              <input type="checkbox" id="prompt-subfolder" checked>
+              <span>Extract into new subfolder</span>
+            </label>
+            <button type="button" id="btn-prompt-confirm" class="sb-btn primary">Extract</button>
+            <button type="button" id="btn-prompt-cancel" class="sb-btn">Cancel</button>
+          </div>
         </div>`;
+      $('btn-prompt-confirm')?.focus();
       return;
     }
 
     if (p.mode === 'compress') {
       bar.innerHTML = `
-        <div class="sb-prompt-title">Compress ${p.paths.length} item(s) in <code>${esc(state.currentDir)}</code></div>
-        <div class="sb-prompt-controls">
-          <input id="prompt-input" type="text" class="sb-prompt-input" value="${esc(p.initialValue || '')}" placeholder="archive.zip" autocomplete="off">
-          <select id="prompt-format" class="sb-prompt-select">
-            <option value="zip">.zip</option>
-            <option value="tar.gz">.tar.gz</option>
-          </select>
-          <button type="button" id="btn-prompt-confirm" class="sb-btn primary">Create Archive</button>
-          <button type="button" id="btn-prompt-cancel" class="sb-btn">Cancel</button>
+        <div class="sb-prompt-card">
+          <div class="sb-prompt-title">Compress ${p.paths.length} item(s) in <code>${esc(state.currentDir)}</code></div>
+          <div class="sb-prompt-controls">
+            <input id="prompt-input" type="text" class="sb-prompt-input" value="${esc(p.initialValue || '')}" placeholder="archive.zip" autocomplete="off">
+            <select id="prompt-format" class="sb-prompt-select">
+              <option value="zip">.zip</option>
+              <option value="tar.gz">.tar.gz</option>
+            </select>
+            <button type="button" id="btn-prompt-confirm" class="sb-btn primary">Create Archive</button>
+            <button type="button" id="btn-prompt-cancel" class="sb-btn">Cancel</button>
+          </div>
         </div>`;
       const inp = $('prompt-input');
       if (inp) {
@@ -524,11 +532,13 @@
         : 'Create';
 
     bar.innerHTML = `
-      <div class="sb-prompt-title">${titleMap[p.mode] || 'Input'}</div>
-      <div class="sb-prompt-controls">
-        <input id="prompt-input" type="text" class="sb-prompt-input" value="${esc(p.initialValue || '')}" placeholder="${esc(p.placeholder || '')}" autocomplete="off">
-        <button type="button" id="btn-prompt-confirm" class="sb-btn primary">${confirmLabel}</button>
-        <button type="button" id="btn-prompt-cancel" class="sb-btn">Cancel</button>
+      <div class="sb-prompt-card">
+        <div class="sb-prompt-title">${titleMap[p.mode] || 'Input'}</div>
+        <div class="sb-prompt-controls">
+          <input id="prompt-input" type="text" class="sb-prompt-input" value="${esc(p.initialValue || '')}" placeholder="${esc(p.placeholder || '')}" autocomplete="off">
+          <button type="button" id="btn-prompt-confirm" class="sb-btn primary">${confirmLabel}</button>
+          <button type="button" id="btn-prompt-cancel" class="sb-btn">Cancel</button>
+        </div>
       </div>`;
 
     const inp = $('prompt-input');
@@ -676,12 +686,20 @@
     setHtmlIfChanged(body, html);
   }
 
+  let inspectLoadingTimer = null;
   async function inspectItem(targetPath, { includeHash = false, includeFolderSize = false } = {}) {
     if (!targetPath) return;
     state.inspectedPath = targetPath;
-    state.inspecting = true;
     renderFileList();
-    renderInspector();
+
+    if (inspectLoadingTimer) clearTimeout(inspectLoadingTimer);
+    if (!state.inspectedData) {
+      inspectLoadingTimer = setTimeout(() => {
+        state.inspecting = true;
+        renderInspector();
+      }, 150);
+    }
+
     try {
       const data = await apiGet('/api/inspect', {
         root: '/',
@@ -695,6 +713,7 @@
     } catch (err) {
       showToast(`Inspect error: ${err.message}`);
     } finally {
+      if (inspectLoadingTimer) clearTimeout(inspectLoadingTimer);
       state.inspecting = false;
       renderInspector();
     }
@@ -802,8 +821,13 @@
     try {
       if (p.mode === 'delete') {
         await apiPost('/api/delete', { root: '/', paths: p.paths });
+        const deletedSet = new Set(p.paths);
         for (const delPath of p.paths) {
           state.selectedPaths.delete(delPath);
+        }
+        state.entries = state.entries.filter((e) => !deletedSet.has(e.path));
+        if (deletedSet.has(state.inspectedPath)) {
+          state.inspectedPath = state.currentDir;
         }
         showToast(`Deleted ${p.paths.length} item(s)`);
       } else if (p.mode === 'extract') {
@@ -886,7 +910,9 @@
 
       state.prompt = null;
       renderPromptBar();
-      await loadCurrentDirectory({ silent: false });
+      renderHeaderAndNav();
+      renderFileList();
+      await loadCurrentDirectory({ silent: true });
     } catch (err) {
       showToast(err.message);
     }
@@ -894,6 +920,12 @@
 
   // Event Delegation
   document.addEventListener('click', async (e) => {
+    if (e.target.id === 'prompt-bar') {
+      state.prompt = null;
+      renderPromptBar();
+      return;
+    }
+
     const sortBtn = e.target.closest('[data-sort]');
     if (sortBtn) {
       const col = sortBtn.dataset.sort;

@@ -2,7 +2,7 @@
   "name": "file-explorer",
   "displayName": "File Explorer",
   "description": "Session AuxPane & Global Sidebar File Explorer with bookmarks, archive zip/unzip, inspector, and MCP session folder tracking.",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "logo": "assets/logo.svg",
   "suggestedPrompts": [
     "Register a folder in the session file explorer",
