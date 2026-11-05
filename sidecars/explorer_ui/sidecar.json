@@ -14,6 +14,11 @@
         "title": "File Explorer"
       },
       {
+        "path": "/sidebar",
+        "entrypoint": "SIDECAR_UI_ENTRYPOINT_SIDEBAR",
+        "title": "File Explorer"
+      },
+      {
         "path": "/fullscreen",
         "entrypoint": "SIDECAR_UI_ENTRYPOINT_FULL_PANE",
         "title": "File Explorer (Full)"

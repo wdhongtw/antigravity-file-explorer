@@ -11,19 +11,26 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import {
+  chmodPathInRoot,
+  compressItemsInRoot,
   createDirectoryInRoot,
   createFileInRoot,
   deletePathInRoot,
+  duplicatePathInRoot,
+  extractArchiveInRoot,
+  inspectPathInRoot,
   listDirectoryInRoot,
   renamePathInRoot,
   resolveScopedPath,
   searchFilesInRoot,
+  transferItemsInRoot,
 } from '../lib/file_service.mjs';
 import {
   extractFolderStepAction,
   getSessionFolderState,
   normalizeFolderPath,
 } from '../lib/session_folders.mjs';
+import { SidebarStore } from '../lib/sidebar_store.mjs';
 
 const tests = [];
 function test(name, fn) {
@@ -288,6 +295,147 @@ test('file_service lists, searches, creates, renames, deletes, and blocks path t
     assert.equal(existsSync(join(outside, 'secret.txt')), true);
   } finally {
     rmSync(outer, { recursive: true, force: true });
+  }
+});
+
+test('file_service supports duplicate, copy/move transfer, chmod, inspect, and zip/tar.gz compress+extract', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'fe-ops-'));
+  try {
+    const dirA = await createDirectoryInRoot(root, root, 'dirA');
+    const dirB = await createDirectoryInRoot(root, root, 'dirB');
+    const script = await createFileInRoot(
+      root,
+      dirA.path,
+      'run.sh',
+      '#!/bin/sh\necho "hello"\n'
+    );
+
+    // Duplicate
+    const dup = await duplicatePathInRoot(root, script.path);
+    assert.equal(dup.name, 'run copy.sh');
+    assert.equal(existsSync(dup.path), true);
+
+    // Chmod toggle executable
+    const chmodded = await chmodPathInRoot(root, script.path, 'toggle-exec');
+    assert.equal(chmodded.isExecutable, true);
+
+    // Inspect with hash and text preview
+    const info = await inspectPathInRoot(root, script.path, {
+      includeHash: true,
+    });
+    assert.equal(info.isExecutable, true);
+    assert.ok(info.sha256 && info.sha256.length === 64);
+    assert.ok(info.textPreview.includes('echo "hello"'));
+
+    // Copy & Move transfer
+    const copied = await transferItemsInRoot(root, [script.path], dirB.path, {
+      mode: 'copy',
+    });
+    assert.equal(copied.items.length, 1);
+    assert.equal(existsSync(copied.items[0].path), true);
+    assert.equal(existsSync(script.path), true);
+
+    const moved = await transferItemsInRoot(root, [dup.path], dirB.path, {
+      mode: 'move',
+    });
+    assert.equal(moved.items.length, 1);
+    assert.equal(existsSync(moved.items[0].path), true);
+    assert.equal(existsSync(dup.path), false);
+
+    // Zip compression + extraction into subfolder
+    const zipRes = await compressItemsInRoot(
+      root,
+      [dirA.path, dirB.path],
+      root,
+      'bundle.zip',
+      'zip'
+    );
+    assert.equal(existsSync(zipRes.path), true);
+    assert.equal(zipRes.name, 'bundle.zip');
+
+    const archiveInfo = await inspectPathInRoot(root, zipRes.path);
+    assert.equal(archiveInfo.isArchive, true);
+    assert.ok(
+      archiveInfo.archivePreview &&
+        Array.isArray(archiveInfo.archivePreview.entries) &&
+        archiveInfo.archivePreview.entries.length >= 2
+    );
+
+    const extractedZip = await extractArchiveInRoot(root, zipRes.path, root, {
+      createSubfolder: true,
+    });
+    assert.equal(
+      existsSync(join(extractedZip.extractedTo, 'dirA', 'run.sh')),
+      true
+    );
+
+    // Tar.gz compression + extraction
+    const tgzRes = await compressItemsInRoot(
+      root,
+      [dirA.path],
+      root,
+      'dirA.tar.gz',
+      'tar.gz'
+    );
+    assert.equal(existsSync(tgzRes.path), true);
+    const extractedTgz = await extractArchiveInRoot(root, tgzRes.path, root, {
+      createSubfolder: true,
+    });
+    assert.equal(
+      existsSync(join(extractedTgz.extractedTo, 'dirA', 'run.sh')),
+      true
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('SidebarStore defaults to home directory and persists bookmarks, recents, and settings', () => {
+  const tempDir = mkdtempSync(join(tmpdir(), 'fe-sidebar-'));
+  try {
+    const storeFile = join(tempDir, 'sidebar_state.json');
+    const customBookmarkDir = join(tempDir, 'my-bookmark');
+    mkdirSync(customBookmarkDir, { recursive: true });
+
+    const store = new SidebarStore({ filePath: storeFile });
+    const initial = store.getState();
+    assert.equal(initial.currentDir, initial.homeDir);
+    assert.ok(initial.bookmarks.some((b) => b.path === initial.homeDir));
+
+    const afterAdd = store.addBookmark(customBookmarkDir, 'Custom Dir');
+    assert.ok(
+      afterAdd.bookmarks.some(
+        (b) => b.path === customBookmarkDir && b.label === 'Custom Dir'
+      )
+    );
+
+    const afterNav = store.setCurrentDir(customBookmarkDir);
+    assert.equal(afterNav.currentDir, customBookmarkDir);
+    assert.equal(afterNav.recentDirs[0].path, customBookmarkDir);
+
+    const afterSettings = store.updateSettings({
+      showHidden: true,
+      sortBy: 'size',
+      sortDir: 'desc',
+    });
+    assert.equal(afterSettings.settings.showHidden, true);
+    assert.equal(afterSettings.settings.sortBy, 'size');
+    assert.equal(afterSettings.settings.sortDir, 'desc');
+
+    // Reload from disk to verify persistence
+    const store2 = new SidebarStore({ filePath: storeFile });
+    const reloaded = store2.getState();
+    assert.equal(reloaded.currentDir, customBookmarkDir);
+    assert.equal(reloaded.settings.showHidden, true);
+    assert.ok(reloaded.bookmarks.some((b) => b.path === customBookmarkDir));
+
+    const afterRemove = store2.removeBookmark(customBookmarkDir);
+    assert.equal(
+      afterRemove.bookmarks.some((b) => b.path === customBookmarkDir),
+      false
+    );
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
   }
 });
 

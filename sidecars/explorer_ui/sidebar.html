@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>File Explorer</title>
+  <link rel="stylesheet" href="/sidebar.css">
+</head>
+<body>
+  <div class="sb-app">
+    <!-- Top Header & Navigation Bar -->
+    <header class="sb-header">
+      <div class="sb-header-top">
+        <div class="sb-brand">
+          <svg class="sb-brand-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M3 6.5C3 5.39543 3.89543 4.5 5 4.5H9.17157C9.70201 4.5 10.2107 4.71071 10.5858 5.08579L12.4142 6.91421C12.7893 7.28929 13.298 7.5 13.8284 7.5H19C20.1046 7.5 21 8.39543 21 9.5V17.5C21 18.6046 20.1046 19.5 19 19.5H5C3.89543 19.5 3 18.6046 3 17.5V6.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+          </svg>
+          <h1 class="sb-title">File Explorer</h1>
+          <span class="sb-global-pill" title="Global File Explorer (persisted across conversations)">Global</span>
+        </div>
+
+        <!-- Navigation Controls & Address Bar -->
+        <div class="sb-nav-bar">
+          <div class="sb-nav-btns">
+            <button id="btn-back" type="button" class="sb-icon-btn" title="Back" disabled>&#8592;</button>
+            <button id="btn-forward" type="button" class="sb-icon-btn" title="Forward" disabled>&#8594;</button>
+            <button id="btn-up" type="button" class="sb-icon-btn" title="Parent folder (..)">&#8593;</button>
+            <button id="btn-home" type="button" class="sb-icon-btn" title="Go to Home folder (~)">&#8962;</button>
+            <button id="btn-refresh" type="button" class="sb-icon-btn" title="Refresh folder">&#8635;</button>
+          </div>
+
+          <!-- Breadcrumb / Path Input Switcher -->
+          <div class="sb-address-box">
+            <div id="breadcrumb-bar" class="sb-breadcrumbs" role="navigation" aria-label="Current directory path"></div>
+            <form id="path-form" class="sb-path-form hidden">
+              <input
+                id="path-input"
+                type="text"
+                class="sb-path-input"
+                placeholder="Enter directory path (e.g. ~/Projects or /tmp)…"
+                autocomplete="off"
+              >
+              <button type="submit" class="sb-btn primary sm">Go</button>
+              <button type="button" id="btn-cancel-path" class="sb-btn sm">Cancel</button>
+            </form>
+          </div>
+
+          <button id="btn-edit-path" type="button" class="sb-btn sm" title="Type or paste a directory path">Path</button>
+          <button id="btn-copy-cwd" type="button" class="sb-btn sm" title="Copy current directory absolute path">Copy Path</button>
+          <button id="btn-bookmark-cwd" type="button" class="sb-btn sm" title="Bookmark or unbookmark current folder">&#9734; Bookmark</button>
+        </div>
+
+        <div class="sb-header-right">
+          <label class="sb-toggle" title="Show hidden dotfiles (.*)">
+            <input type="checkbox" id="chk-hidden" checked>
+            <span>.* Hidden</span>
+          </label>
+          <label class="sb-toggle" title="Toggle right-hand Inspector panel">
+            <input type="checkbox" id="chk-inspector" checked>
+            <span>Inspector</span>
+          </label>
+          <label class="sb-toggle" title="Auto-refresh every 4 seconds">
+            <input type="checkbox" id="chk-live" checked>
+            <span class="sb-live-dot" aria-hidden="true"></span>
+            <span>Live</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Action & Filter Toolbar -->
+      <div class="sb-toolbar">
+        <div class="sb-search-group">
+          <input
+            id="filter-input"
+            type="search"
+            class="sb-search-input"
+            placeholder="Filter current folder (or press Enter to search subfolders)…"
+            autocomplete="off"
+          >
+          <button id="btn-recursive-search" type="button" class="sb-btn sm" title="Search recursively in subfolders">Search Subfolders</button>
+          <button id="btn-clear-search" type="button" class="sb-btn sm hidden">Clear</button>
+        </div>
+
+        <div class="sb-action-group">
+          <button id="btn-new-file" type="button" class="sb-btn sm" title="Create a new empty file in current folder">+ File</button>
+          <button id="btn-new-folder" type="button" class="sb-btn sm" title="Create a new folder in current folder">+ Folder</button>
+          <span class="sb-divider"></span>
+          <button id="btn-copy-sel" type="button" class="sb-btn sm" disabled title="Copy selected items to clipboard">Copy</button>
+          <button id="btn-cut-sel" type="button" class="sb-btn sm" disabled title="Cut (move) selected items to clipboard">Cut</button>
+          <button id="btn-paste" type="button" class="sb-btn primary sm hidden" title="Paste clipboard items into current folder">Paste Here</button>
+          <button id="btn-clear-clip" type="button" class="sb-btn sm hidden" title="Clear clipboard">Clear Clip</button>
+          <span class="sb-divider"></span>
+          <button id="btn-zip-sel" type="button" class="sb-btn sm" disabled title="Compress selected items into .zip or .tar.gz">Zip / Archive</button>
+          <button id="btn-delete-sel" type="button" class="sb-btn danger sm" disabled title="Delete selected items">Delete</button>
+        </div>
+      </div>
+
+      <!-- Inline Prompt Bar for Create / Rename / Zip / Unzip / Chmod / Delete / Bookmark -->
+      <div id="prompt-bar" class="sb-prompt-bar hidden" role="region" aria-label="Action prompt"></div>
+    </header>
+
+    <!-- Main 3-Pane Workspace -->
+    <div class="sb-workspace">
+      <!-- Left Sidebar: Bookmarks & Recent Folders -->
+      <aside class="sb-left-pane">
+        <div class="sb-pane-section">
+          <div class="sb-section-header">
+            <span class="sb-section-title">
+              Bookmarks
+              <span id="bookmark-count" class="sb-count-pill">0</span>
+            </span>
+            <button id="btn-add-bookmark" type="button" class="sb-link-btn" title="Bookmark current directory">+ Current</button>
+          </div>
+          <div id="bookmark-list" class="sb-nav-list" role="listbox" aria-label="Bookmarked folders"></div>
+        </div>
+
+        <div class="sb-pane-section sb-recent-section">
+          <div class="sb-section-header">
+            <span class="sb-section-title">Recent Folders</span>
+          </div>
+          <div id="recent-list" class="sb-nav-list" role="listbox" aria-label="Recently visited folders"></div>
+        </div>
+      </aside>
+
+      <!-- Center Pane: Directory Table & Search Results -->
+      <main class="sb-center-pane">
+        <div class="sb-table-header">
+          <div class="sb-col-check">
+            <input type="checkbox" id="chk-select-all" title="Select all items">
+          </div>
+          <button type="button" class="sb-col-sort sb-col-name" data-sort="name">
+            <span>Name</span>
+            <span id="sort-ind-name" class="sb-sort-ind"></span>
+          </button>
+          <button type="button" class="sb-col-sort sb-col-size" data-sort="size">
+            <span>Size</span>
+            <span id="sort-ind-size" class="sb-sort-ind"></span>
+          </button>
+          <div class="sb-col-perms">Permissions</div>
+          <button type="button" class="sb-col-sort sb-col-mtime" data-sort="mtime">
+            <span>Modified</span>
+            <span id="sort-ind-mtime" class="sb-sort-ind"></span>
+          </button>
+          <div class="sb-col-actions">Actions</div>
+        </div>
+
+        <div id="file-list" class="sb-file-list" role="region" aria-label="Directory contents">
+          <div class="sb-empty">Loading home folder…</div>
+        </div>
+
+        <footer class="sb-status-bar">
+          <span id="status-summary">0 items</span>
+          <span id="status-selection"></span>
+          <span id="status-clipboard"></span>
+        </footer>
+      </main>
+
+      <!-- Right Pane: File / Folder / Archive Inspector -->
+      <aside id="inspector-pane" class="sb-right-pane">
+        <div class="sb-section-header">
+          <span class="sb-section-title">Inspector</span>
+          <span id="inspector-kind-badge" class="sb-kind-badge">Folder</span>
+        </div>
+        <div id="inspector-body" class="sb-inspector-body">
+          <div class="sb-empty">Select a file or folder to inspect its metadata, permissions, archive contents, or text preview.</div>
+        </div>
+      </aside>
+    </div>
+
+    <div id="toast" class="sb-toast hidden" role="status" aria-live="polite"></div>
+  </div>
+  <script src="/sidebar.js"></script>
+</body>
+</html>

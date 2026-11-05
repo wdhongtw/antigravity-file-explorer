@@ -1,12 +1,16 @@
-# Session File Explorer (`file-explorer`)
+# File Explorer (`file-explorer`)
 
-Interactive UI plugin and MCP toolset (`folder_*`) for browsing files across all
-directories associated with a project and chat session, with native AuxPane File
-Preview (`fileView`) integration.
+Interactive UI plugin and MCP toolset (`folder_*`) providing both a **per-session AuxPane File Explorer** (`SIDECAR_UI_ENTRYPOINT_AUX_PANE`) and a **Global Sidebar File Explorer** (`SIDECAR_UI_ENTRYPOINT_SIDEBAR`).
 
 ## Key Features
 
-- **Unified Root Folder Selector**:
+- **Global Sidebar File Explorer (`/sidebar`, `SIDECAR_UI_ENTRYPOINT_SIDEBAR`)**:
+  - **Global State**: Persisted independently of any conversation, defaulting to the user's home folder (`~`).
+  - **Folder Bookmarks & Recents**: Bookmark/unbookmark frequently visited directories, rename bookmarks, and jump between bookmarked or recently visited folders from the left rail.
+  - **File & Folder Operations**: Create files/folders, rename, duplicate, copy/cut/paste across directories, delete (single or multi-select), and toggle executable permissions (`chmod +x` or octal mode).
+  - **Archive Compression & Extraction**: Compress selected files/folders into `.zip` or `.tar.gz` archives, preview archive contents, and extract `.zip` / `.tar.*` archives directly or into a dedicated subfolder.
+  - **Sortable Table & Collapsible Inspector**: Sort by `Name`, `Size`, or `Modified` date; inspect file/folder metadata, calculate recursive directory sizes, compute SHA-256 checksums, and read inline text previews without opening an AuxPane editor tab on click.
+- **Session AuxPane File Explorer (`/`, `SIDECAR_UI_ENTRYPOINT_AUX_PANE`)**:
   - Automatically populates the top clickable root-folder rows with:
     1. **Session Workspaces** (`CortexTrajectoryMetadata.workspace_uris` /
        `workspaces`)
