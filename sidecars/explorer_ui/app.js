@@ -209,22 +209,8 @@
   }
 
   function renderHeaderAndRoots() {
-    $('count-roots').textContent = String(state.roots.length);
-
-    const forkBadge = $('fork-badge');
-    if (forkBadge) {
-      if (state.isForkedSession) {
-        const parentShort = state.parentConversationId
-          ? state.parentConversationId.slice(0, 8)
-          : 'parent';
-        forkBadge.textContent = `fork:${parentShort}`;
-        forkBadge.title = state.parentConversationId
-          ? `Forked from conversation ${state.parentConversationId}`
-          : 'Forked session';
-        forkBadge.classList.remove('hidden');
-      } else {
-        forkBadge.classList.add('hidden');
-      }
+    if ($('count-roots')) {
+      $('count-roots').textContent = String(state.roots.length);
     }
 
     const listEl = $('root-list');
@@ -938,15 +924,6 @@
     }
   });
 
-  $('btn-refresh')?.addEventListener('click', () => {
-    showToast('Refreshing file explorer…');
-    refreshAll({ silent: false });
-  });
-
-  $('chk-live')?.addEventListener('change', (e) => {
-    state.live = e.target.checked;
-  });
-
   $('chk-hidden')?.addEventListener('change', async (e) => {
     state.showHidden = e.target.checked;
     if (state.searchQuery.trim()) {
@@ -987,19 +964,36 @@
     renderExplorerBody();
   });
 
+  let lastRefreshAt = 0;
+  async function refreshIfActive({ silent = true, minIntervalMs = 0 } = {}) {
+    if (state.mutation) return;
+    const now = Date.now();
+    if (minIntervalMs > 0 && now - lastRefreshAt < minIntervalMs) return;
+    lastRefreshAt = now;
+    await refreshAll({ silent });
+  }
+
   async function init() {
     state.conversationId = resolveConversationId();
-    if (state.conversationId) {
-      const badge = $('conv-badge');
-      badge.textContent = `conv:${state.conversationId.slice(0, 8)}`;
-      badge.classList.remove('hidden');
-    }
-
+    lastRefreshAt = Date.now();
     await refreshAll({ silent: false });
 
+    // Refresh automatically when the pane becomes visible, focused, or interacted with
+    window.addEventListener('focus', () => {
+      refreshIfActive({ silent: true, minIntervalMs: 1000 });
+    });
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        refreshIfActive({ silent: true, minIntervalMs: 1000 });
+      }
+    });
+    document.addEventListener('mouseenter', () => {
+      refreshIfActive({ silent: true, minIntervalMs: 2000 });
+    });
+
     setInterval(() => {
-      if (state.live && !document.hidden && !state.mutation) {
-        refreshAll({ silent: true });
+      if (!document.hidden && !state.mutation) {
+        refreshIfActive({ silent: true });
       }
     }, POLL_INTERVAL_MS);
   }

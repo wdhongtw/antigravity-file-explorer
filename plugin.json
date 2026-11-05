@@ -1,8 +1,8 @@
 {
   "name": "file-explorer",
-  "displayName": "Session File Explorer",
-  "description": "Explore files across session workspaces, project folders, brain artifacts, and MCP-registered folders with native file preview.",
-  "version": "0.1.4",
+  "displayName": "File Explorer",
+  "description": "Session AuxPane & Global Sidebar File Explorer with bookmarks, archive zip/unzip, inspector, and MCP session folder tracking.",
+  "version": "0.2.1",
   "logo": "assets/logo.svg",
   "suggestedPrompts": [
     "Register a folder in the session file explorer",
