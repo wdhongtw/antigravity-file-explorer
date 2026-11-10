@@ -33,6 +33,7 @@ import {
   normalizeFolderPath,
 } from '../lib/session_folders.mjs';
 import { SidebarStore } from '../lib/sidebar_store.mjs';
+import { handleToolCall } from '../mcp/folder_mcp.mjs';
 
 const tests = [];
 function test(name, fn) {
@@ -202,6 +203,135 @@ test('folder_unregister removes folder from session state', async () => {
 
   assert.equal(state.folders.length, 1);
   assert.equal(state.folders[0].path, '/tmp/dir-a');
+});
+
+test('in-flight RUNNING trajectory steps are tracked across parallel calls in the same turn without premature or double application', async () => {
+  const convId = 'conv-inflight-turn';
+  // Simulate 3 parallel tool calls in the same turn, all appended to the trajectory as RUNNING before execution:
+  // Step 0: folder_register /tmp/dir-1
+  // Step 1: folder_register /tmp/dir-2
+  // Step 2: folder_unregister /tmp/dir-1
+  const trajectoryData = {
+    ok: true,
+    metadata: {},
+    parentReferences: [],
+    steps: [
+      {
+        type: 'CORTEX_STEP_TYPE_GENERIC',
+        status: 'CORTEX_STEP_STATUS_RUNNING',
+        metadata: {
+          toolCall: {
+            id: 'inflight-1',
+            name: 'mcp_file-explorer_folder_folder_register',
+            argumentsJson: JSON.stringify({
+              path: '/tmp/dir-1',
+              label: 'Dir 1',
+            }),
+          },
+        },
+      },
+      {
+        type: 'CORTEX_STEP_TYPE_GENERIC',
+        status: 'CORTEX_STEP_STATUS_RUNNING',
+        metadata: {
+          toolCall: {
+            id: 'inflight-2',
+            name: 'mcp_file-explorer_folder_folder_register',
+            argumentsJson: JSON.stringify({
+              path: '/tmp/dir-2',
+              label: 'Dir 2',
+            }),
+          },
+        },
+      },
+      {
+        type: 'CORTEX_STEP_TYPE_GENERIC',
+        status: 'CORTEX_STEP_STATUS_RUNNING',
+        metadata: {
+          toolCall: {
+            id: 'inflight-3',
+            name: 'mcp_file-explorer_folder_folder_unregister',
+            argumentsJson: JSON.stringify({
+              path: '/tmp/dir-1',
+            }),
+          },
+        },
+      },
+    ],
+  };
+
+  // By default extractFolderStepAction ignores RUNNING steps
+  assert.equal(extractFolderStepAction(trajectoryData.steps[0]), null);
+  assert.ok(
+    extractFolderStepAction(trajectoryData.steps[0], { allowInFlight: true })
+  );
+
+  // 1. Execute Call 1 (folder_register /tmp/dir-1):
+  // Only /tmp/dir-1 should be registered at stepIndex 0 (not double-applied at step 3, and step 1 & 2 must not be applied yet!)
+  const res1 = await handleToolCall(
+    {
+      name: 'folder_register',
+      arguments: { path: '/tmp/dir-1', label: 'Dir 1' },
+      _meta: { 'antigravity.google/conversation_id': convId },
+    },
+    { trajectoryData, includeBrainDir: false }
+  );
+  const payload1 = JSON.parse(res1.content[0].text);
+  assert.equal(payload1.trackedCount, 1);
+  assert.equal(payload1.folders[0].path, '/tmp/dir-1');
+  assert.equal(payload1.folders[0].registeredStep, 0);
+  assert.equal(payload1.folders[0].updatedStep, 0);
+
+  // 2. Execute Call 2 (folder_register /tmp/dir-2) while all 3 steps are still RUNNING:
+  // Call 1 is retained via committedInFlightByConv at step 0, and Call 2 is applied at step 1
+  const res2 = await handleToolCall(
+    {
+      name: 'folder_register',
+      arguments: { path: '/tmp/dir-2', label: 'Dir 2' },
+      _meta: { 'antigravity.google/conversation_id': convId },
+    },
+    { trajectoryData, includeBrainDir: false }
+  );
+  const payload2 = JSON.parse(res2.content[0].text);
+  assert.equal(payload2.trackedCount, 2);
+  const d1In2 = payload2.folders.find((f) => f.path === '/tmp/dir-1');
+  const d2In2 = payload2.folders.find((f) => f.path === '/tmp/dir-2');
+  assert.equal(d1In2.registeredStep, 0);
+  assert.equal(d1In2.updatedStep, 0);
+  assert.equal(d2In2.registeredStep, 1);
+  assert.equal(d2In2.updatedStep, 1);
+
+  // 3. Execute Call 3 (folder_unregister /tmp/dir-1) while all 3 steps are still RUNNING:
+  // /tmp/dir-1 is now unregistered, leaving only /tmp/dir-2
+  const res3 = await handleToolCall(
+    {
+      name: 'folder_unregister',
+      arguments: { path: '/tmp/dir-1' },
+      _meta: { 'antigravity.google/conversation_id': convId },
+    },
+    { trajectoryData, includeBrainDir: false }
+  );
+  const payload3 = JSON.parse(res3.content[0].text);
+  assert.equal(payload3.trackedCount, 1);
+  assert.equal(payload3.folders[0].path, '/tmp/dir-2');
+
+  // 4. Transition all 3 steps to DONE and call folder_list
+  for (const s of trajectoryData.steps) {
+    s.status = 'CORTEX_STEP_STATUS_DONE';
+  }
+  const resList = await handleToolCall(
+    {
+      name: 'folder_list',
+      arguments: {},
+      _meta: { 'antigravity.google/conversation_id': convId },
+    },
+    { trajectoryData, includeBrainDir: false }
+  );
+  const payloadList = JSON.parse(resList.content[0].text);
+  assert.equal(payloadList.trackedCount, 1);
+  assert.equal(payloadList.folders[0].path, '/tmp/dir-2');
+  assert.equal(payloadList.folders[0].registeredStep, 1);
+  assert.equal(payloadList.folders[0].updatedStep, 1);
 });
 
 test('extractFolderStepAction supports CLI fallback in run_command steps', () => {

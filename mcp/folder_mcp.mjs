@@ -102,7 +102,7 @@ function sendError(id, code, message) {
   sendMessage({ jsonrpc: '2.0', id, error: { code, message } });
 }
 
-async function handleToolCall(params) {
+export async function handleToolCall(params, options = {}) {
   const rawToolName = params?.name || '';
   const args = params?.arguments || {};
   const meta = params?._meta || {};
@@ -131,7 +131,11 @@ async function handleToolCall(params) {
       args: { ...args, path: folderPath },
       createdAt: new Date().toISOString(),
     };
-    const state = await getSessionFolderState(conversationId, pendingAction);
+    const state = await getSessionFolderState(
+      conversationId,
+      pendingAction,
+      options
+    );
 
     const actionVerb =
       toolName === 'folder_unregister' ? 'Unregistered' : 'Registered';
@@ -152,7 +156,7 @@ async function handleToolCall(params) {
   }
 
   if (toolName === 'folder_list') {
-    const state = await getSessionFolderState(conversationId, null);
+    const state = await getSessionFolderState(conversationId, null, options);
     const payload = {
       ok: true,
       conversationId,
@@ -217,6 +221,16 @@ async function processRpcMessage(msg) {
   }
 }
 
+let rpcQueue = Promise.resolve();
+
+function enqueueRpcMessage(msg) {
+  rpcQueue = rpcQueue
+    .then(() => processRpcMessage(msg))
+    .catch((err) => {
+      sendError(msg?.id ?? null, -32603, err?.message || String(err));
+    });
+}
+
 function drainInputBuffer() {
   while (inputBuffer.length > 0) {
     const headerStart = inputBuffer.subarray(0, 32).toString('utf-8');
@@ -232,7 +246,7 @@ function drainInputBuffer() {
       const bodyText = inputBuffer.subarray(sepIdx + 4, totalLen).toString('utf-8');
       inputBuffer = inputBuffer.subarray(totalLen);
       try {
-        processRpcMessage(JSON.parse(bodyText));
+        enqueueRpcMessage(JSON.parse(bodyText));
       } catch (err) {
         sendError(null, -32700, `Parse error: ${err.message}`);
       }
@@ -243,7 +257,7 @@ function drainInputBuffer() {
       inputBuffer = inputBuffer.subarray(nlIdx + 1);
       if (!line) continue;
       try {
-        processRpcMessage(JSON.parse(line));
+        enqueueRpcMessage(JSON.parse(line));
       } catch (err) {
         sendError(null, -32700, `Parse error: ${err.message}`);
       }
@@ -251,34 +265,39 @@ function drainInputBuffer() {
   }
 }
 
-if (process.argv[2] === '--cli') {
-  const cliToolName = process.argv[3] || '';
-  const cliArgsRaw = process.argv[4] || '{}';
-  let cliArgs = {};
-  try {
-    cliArgs = JSON.parse(cliArgsRaw);
-  } catch (err) {
-    console.error(`Invalid JSON arguments: ${err.message}`);
-    process.exit(1);
-  }
-  handleToolCall({
-    name: cliToolName,
-    arguments: cliArgs,
-  }).then((res) => {
-    const text = res.content?.[0]?.text || '';
-    if (res.isError) {
-      console.error(text);
+const isMainModule =
+  process.argv[1] && process.argv[1].endsWith('folder_mcp.mjs');
+
+if (isMainModule) {
+  if (process.argv[2] === '--cli') {
+    const cliToolName = process.argv[3] || '';
+    const cliArgsRaw = process.argv[4] || '{}';
+    let cliArgs = {};
+    try {
+      cliArgs = JSON.parse(cliArgsRaw);
+    } catch (err) {
+      console.error(`Invalid JSON arguments: ${err.message}`);
       process.exit(1);
     }
-    console.log(text);
-    process.exit(0);
-  });
-} else {
-  process.stdin.on('data', (chunk) => {
-    inputBuffer = Buffer.concat([inputBuffer, chunk]);
-    drainInputBuffer();
-  });
-  process.stdin.on('end', () => {
-    process.exit(0);
-  });
+    handleToolCall({
+      name: cliToolName,
+      arguments: cliArgs,
+    }).then((res) => {
+      const text = res.content?.[0]?.text || '';
+      if (res.isError) {
+        console.error(text);
+        process.exit(1);
+      }
+      console.log(text);
+      process.exit(0);
+    });
+  } else {
+    process.stdin.on('data', (chunk) => {
+      inputBuffer = Buffer.concat([inputBuffer, chunk]);
+      drainInputBuffer();
+    });
+    process.stdin.on('end', () => {
+      process.exit(0);
+    });
+  }
 }
