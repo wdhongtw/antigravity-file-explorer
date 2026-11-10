@@ -47,9 +47,9 @@
   function getSidecarToken() {
     try {
       const params = new URLSearchParams(window.location.search);
-      return params.get('token') || '';
+      return params.get('token') || window.__SIDECAR_TOKEN__ || '';
     } catch {
-      return '';
+      return window.__SIDECAR_TOKEN__ || '';
     }
   }
   const SIDECAR_TOKEN = getSidecarToken();
@@ -153,6 +153,120 @@
     return state.bookmarks.some((b) => b.path === dirPath);
   }
 
+  function triggerDownloadPaths(paths) {
+    const list = Array.isArray(paths) ? paths.filter(Boolean) : paths ? [paths] : [];
+    if (list.length === 0) return;
+    const url = new URL('/api/download-page', window.location.origin);
+    url.searchParams.set('root', '/');
+    for (const p of list) {
+      url.searchParams.append('path', p);
+    }
+    if (SIDECAR_TOKEN) {
+      url.searchParams.set('token', SIDECAR_TOKEN);
+    }
+    const label =
+      list.length === 1
+        ? list[0].split('/').filter(Boolean).pop() || 'download'
+        : `${list.length} items (.zip)`;
+    const popup = window.open(url.toString(), '_blank');
+    if (popup) {
+      showToast(`Downloading ${label}…`);
+      return;
+    }
+    showToast('Popup blocked — please allow popups to download files');
+  }
+
+  let pendingUploadTargetDir = '';
+
+  async function uploadFileObjects(targetDir, fileItems) {
+    const destDir = targetDir || state.currentDir;
+    if (!destDir || !fileItems || fileItems.length === 0) return;
+    try {
+      showToast(`Uploading ${fileItems.length} file(s)…`);
+      let uploadedCount = 0;
+      let lastPath = '';
+      for (const item of fileItems) {
+        const file = item.file || item;
+        const relPath =
+          item.relPath || file.webkitRelativePath || file.name || 'uploaded-file';
+        const url = new URL('/api/upload', window.location.origin);
+        url.searchParams.set('root', '/');
+        url.searchParams.set('targetDir', destDir);
+        url.searchParams.set('relPath', relPath);
+        const headers = { 'Content-Type': 'application/octet-stream' };
+        if (SIDECAR_TOKEN) {
+          headers['X-Sidecar-Token'] = SIDECAR_TOKEN;
+          url.searchParams.set('token', SIDECAR_TOKEN);
+        }
+        const buf = await file.arrayBuffer();
+        const res = await fetch(url.toString(), {
+          method: 'POST',
+          headers,
+          body: buf,
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.error) {
+          throw new Error(data.error || `HTTP ${res.status}`);
+        }
+        uploadedCount += data.count || 1;
+        if (data.items?.[0]?.path) {
+          lastPath = data.items[0].path;
+        }
+      }
+      showToast(`Uploaded ${uploadedCount} file(s) into ${destDir}`);
+      if (lastPath && destDir === state.currentDir) {
+        state.inspectedPath = lastPath;
+      }
+      await loadCurrentDirectory({ silent: true });
+    } catch (err) {
+      showToast(`Upload failed: ${err.message}`);
+    }
+  }
+
+  async function collectDroppedFiles(dataTransfer) {
+    const items = dataTransfer?.items ? [...dataTransfer.items] : [];
+    const entries = items
+      .map((it) => (typeof it.webkitGetAsEntry === 'function' ? it.webkitGetAsEntry() : null))
+      .filter(Boolean);
+
+    if (entries.length === 0) {
+      return [...(dataTransfer?.files || [])].map((f) => ({
+        file: f,
+        relPath: f.webkitRelativePath || f.name,
+      }));
+    }
+
+    const collected = [];
+    async function walkEntry(entry, prefix = '') {
+      if (entry.isFile) {
+        const file = await new Promise((resolve, reject) => entry.file(resolve, reject));
+        collected.push({
+          file,
+          relPath: prefix ? `${prefix}/${file.name}` : file.name,
+        });
+      } else if (entry.isDirectory) {
+        const reader = entry.createReader();
+        const children = [];
+        while (true) {
+          const batch = await new Promise((resolve, reject) =>
+            reader.readEntries(resolve, reject)
+          );
+          if (!batch || batch.length === 0) break;
+          children.push(...batch);
+        }
+        const nextPrefix = prefix ? `${prefix}/${entry.name}` : entry.name;
+        for (const child of children) {
+          await walkEntry(child, nextPrefix);
+        }
+      }
+    }
+
+    for (const entry of entries) {
+      await walkEntry(entry, '');
+    }
+    return collected;
+  }
+
   function applyServerSidebarState(data) {
     if (data.homeDir) state.homeDir = data.homeDir;
     if (data.currentDir) state.currentDir = data.currentDir;
@@ -228,6 +342,11 @@
     $('btn-copy-sel').textContent = selCount > 0 ? `Copy (${selCount})` : 'Copy';
     $('btn-cut-sel').disabled = selCount === 0;
     $('btn-cut-sel').textContent = selCount > 0 ? `Cut (${selCount})` : 'Cut';
+    if ($('btn-download-sel')) {
+      $('btn-download-sel').disabled = selCount === 0;
+      $('btn-download-sel').innerHTML =
+        selCount > 0 ? `&#8595; Download (${selCount})` : '&#8595; Download';
+    }
     $('btn-zip-sel').disabled = selCount === 0;
     $('btn-zip-sel').textContent = selCount > 0 ? `Zip (${selCount})` : 'Zip / Archive';
     $('btn-delete-sel').disabled = selCount === 0;
@@ -388,6 +507,7 @@
           const bm = isBookmarked(entry.path);
           actionsHtml = `
             <button type="button" class="sb-row-btn${bm ? ' accent' : ''}" data-action="toggle-bookmark" data-path="${esc(entry.path)}" data-name="${esc(entry.name)}" title="${bm ? 'Remove bookmark' : 'Bookmark folder'}">${bm ? '&#9733;' : '&#9734;'}</button>
+            <button type="button" class="sb-row-btn" data-action="download-item" data-path="${esc(entry.path)}" title="Download folder as .zip">Dl</button>
             <button type="button" class="sb-row-btn" data-action="zip-item" data-path="${esc(entry.path)}" data-name="${esc(entry.name)}" title="Compress folder to .zip">Zip</button>
             <button type="button" class="sb-row-btn" data-action="copy-abs" data-path="${esc(entry.path)}" title="Copy absolute path">Copy</button>
             <button type="button" class="sb-row-btn" data-action="rename" data-path="${esc(entry.path)}" data-name="${esc(entry.name)}" title="Rename">Ren</button>
@@ -395,12 +515,14 @@
         } else if (entry.isArchive) {
           actionsHtml = `
             <button type="button" class="sb-row-btn accent" data-action="extract-item" data-path="${esc(entry.path)}" data-name="${esc(entry.name)}" title="Extract archive (Unzip / Untar)">Unzip</button>
+            <button type="button" class="sb-row-btn" data-action="download-item" data-path="${esc(entry.path)}" title="Download archive">Dl</button>
             <button type="button" class="sb-row-btn" data-action="copy-abs" data-path="${esc(entry.path)}" title="Copy absolute path">Copy</button>
             <button type="button" class="sb-row-btn" data-action="duplicate" data-path="${esc(entry.path)}" data-name="${esc(entry.name)}" title="Duplicate archive">Dup</button>
             <button type="button" class="sb-row-btn" data-action="rename" data-path="${esc(entry.path)}" data-name="${esc(entry.name)}" title="Rename">Ren</button>
             <button type="button" class="sb-row-btn danger" data-action="delete-item" data-path="${esc(entry.path)}" data-name="${esc(entry.name)}" title="Delete">Del</button>`;
         } else {
           actionsHtml = `
+            <button type="button" class="sb-row-btn" data-action="download-item" data-path="${esc(entry.path)}" title="Download file">Dl</button>
             <button type="button" class="sb-row-btn" data-action="zip-item" data-path="${esc(entry.path)}" data-name="${esc(entry.name)}" title="Compress file to .zip">Zip</button>
             <button type="button" class="sb-row-btn" data-action="copy-abs" data-path="${esc(entry.path)}" title="Copy absolute path">Copy</button>
             <button type="button" class="sb-row-btn" data-action="duplicate" data-path="${esc(entry.path)}" data-name="${esc(entry.name)}" title="Duplicate file">Dup</button>
@@ -595,6 +717,14 @@
 
     const bm = d.isDirectory && isBookmarked(d.path);
     const quickActions = [];
+    quickActions.push(
+      `<button type="button" class="sb-btn primary sm" data-action="download-item" data-path="${esc(d.path)}">&#8595; ${d.isDirectory ? 'Download (.zip)' : 'Download'}</button>`
+    );
+    if (d.isDirectory) {
+      quickActions.push(
+        `<button type="button" class="sb-btn sm" data-action="upload-into-dir" data-path="${esc(d.path)}">&#8593; Upload Here</button>`
+      );
+    }
     quickActions.push(
       `<button type="button" class="sb-btn sm" data-action="copy-abs" data-path="${esc(d.path)}">Copy Abs Path</button>`
     );
@@ -981,6 +1111,15 @@
         renderFileList();
         return;
       }
+      if (action === 'download-item') {
+        await triggerDownloadPaths([targetPath]);
+        return;
+      }
+      if (action === 'upload-into-dir') {
+        pendingUploadTargetDir = targetPath || state.currentDir;
+        $('upload-files-input')?.click();
+        return;
+      }
       if (action === 'copy-abs') {
         await navigator.clipboard?.writeText(targetPath);
         showToast(`Copied path: ${targetPath}`);
@@ -1297,6 +1436,70 @@
       placeholder: 'folder-name',
     };
     renderPromptBar();
+  });
+
+  $('btn-upload-files')?.addEventListener('click', () => {
+    pendingUploadTargetDir = state.currentDir;
+    $('upload-files-input')?.click();
+  });
+
+  $('btn-upload-folder')?.addEventListener('click', () => {
+    pendingUploadTargetDir = state.currentDir;
+    $('upload-folder-input')?.click();
+  });
+
+  $('upload-files-input')?.addEventListener('change', async (e) => {
+    const files = [...(e.target.files || [])];
+    e.target.value = '';
+    if (!files.length) return;
+    await uploadFileObjects(pendingUploadTargetDir || state.currentDir, files);
+  });
+
+  $('upload-folder-input')?.addEventListener('change', async (e) => {
+    const files = [...(e.target.files || [])];
+    e.target.value = '';
+    if (!files.length) return;
+    await uploadFileObjects(pendingUploadTargetDir || state.currentDir, files);
+  });
+
+  $('btn-download-sel')?.addEventListener('click', async () => {
+    if (state.selectedPaths.size === 0) return;
+    await triggerDownloadPaths([...state.selectedPaths]);
+  });
+
+  let dragDepth = 0;
+  document.addEventListener('dragenter', (e) => {
+    if (!e.dataTransfer?.types?.includes('Files')) return;
+    e.preventDefault();
+    dragDepth++;
+    $('drop-overlay')?.classList.remove('hidden');
+  });
+
+  document.addEventListener('dragover', (e) => {
+    if (!e.dataTransfer?.types?.includes('Files')) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  });
+
+  document.addEventListener('dragleave', () => {
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (dragDepth === 0) {
+      $('drop-overlay')?.classList.add('hidden');
+    }
+  });
+
+  document.addEventListener('drop', async (e) => {
+    dragDepth = 0;
+    $('drop-overlay')?.classList.add('hidden');
+    if (!e.dataTransfer?.files?.length) return;
+    e.preventDefault();
+    const rowEl = e.target.closest('[data-row-path]');
+    let targetDir = state.currentDir;
+    if (rowEl && rowEl.dataset.rowIsdir === '1' && rowEl.dataset.rowPath) {
+      targetDir = rowEl.dataset.rowPath;
+    }
+    const items = await collectDroppedFiles(e.dataTransfer);
+    await uploadFileObjects(targetDir, items);
   });
 
   $('btn-copy-sel')?.addEventListener('click', () => {

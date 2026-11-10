@@ -20,10 +20,12 @@ import {
   extractArchiveInRoot,
   inspectPathInRoot,
   listDirectoryInRoot,
+  prepareDownloadInRoot,
   renamePathInRoot,
   resolveScopedPath,
   searchFilesInRoot,
   transferItemsInRoot,
+  uploadFilesInRoot,
 } from '../lib/file_service.mjs';
 import {
   extractFolderStepAction,
@@ -385,6 +387,44 @@ test('file_service supports duplicate, copy/move transfer, chmod, inspect, and z
       existsSync(join(extractedTgz.extractedTo, 'dirA', 'run.sh')),
       true
     );
+
+    // Upload files (raw Buffer + nested relative path + collision auto-rename)
+    const uploadRes = await uploadFilesInRoot(root, root, [
+      {
+        relPath: 'uploaded/nested/hello.txt',
+        buffer: Buffer.from('uploaded-content-1', 'utf-8'),
+      },
+      {
+        relPath: 'uploaded/nested/hello.txt',
+        contentBase64: Buffer.from('uploaded-content-2', 'utf-8').toString(
+          'base64'
+        ),
+      },
+    ]);
+    assert.equal(uploadRes.count, 2);
+    assert.equal(uploadRes.items[0].relPath, 'uploaded/nested/hello.txt');
+    assert.equal(
+      uploadRes.items[1].relPath,
+      'uploaded/nested/hello copy.txt'
+    );
+
+    // Download single file (raw buffer)
+    const singleDl = await prepareDownloadInRoot(root, [
+      uploadRes.items[0].path,
+    ]);
+    assert.equal(singleDl.isArchiveBundle, false);
+    assert.equal(singleDl.filename, 'hello.txt');
+    assert.equal(singleDl.buffer.toString('utf-8'), 'uploaded-content-1');
+
+    // Download directory or multi-item selection (.zip archive)
+    const dirDl = await prepareDownloadInRoot(root, [join(root, 'uploaded')]);
+    assert.equal(dirDl.isArchiveBundle, true);
+    assert.equal(dirDl.filename, 'uploaded.zip');
+    assert.equal(dirDl.contentType, 'application/zip');
+    assert.ok(dirDl.buffer.length > 0);
+    // Verify PK zip magic header (0x50 0x4b)
+    assert.equal(dirDl.buffer[0], 0x50);
+    assert.equal(dirDl.buffer[1], 0x4b);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

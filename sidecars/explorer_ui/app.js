@@ -65,7 +65,7 @@
   }
 
   const urlParams = new URLSearchParams(window.location.search);
-  const sidecarToken = urlParams.get('token') || '';
+  const sidecarToken = urlParams.get('token') || window.__SIDECAR_TOKEN__ || '';
 
   function syncThemeScheme() {
     const probe = document.createElement('span');
@@ -219,6 +219,107 @@
     }
     navigator.clipboard?.writeText(absPath);
     showToast(`Copied path: ${absPath}`);
+  }
+
+  function triggerDownload(rootPath, targetPath) {
+    if (!rootPath || !targetPath) return;
+    const filename = targetPath.split('/').filter(Boolean).pop() || 'download';
+    const url = new URL('/api/download-page', window.location.origin);
+    url.searchParams.set('root', rootPath);
+    url.searchParams.append('path', targetPath);
+    if (sidecarToken) {
+      url.searchParams.set('token', sidecarToken);
+    }
+    const popup = window.open(url.toString(), '_blank');
+    if (popup) {
+      showToast(`Downloading ${filename}…`);
+      return;
+    }
+    showToast('Popup blocked — please allow popups to download files');
+  }
+
+  let pendingUploadTargetDir = '';
+
+  async function uploadFileObjects(rootPath, targetDir, fileItems) {
+    if (!rootPath || !targetDir || !fileItems || fileItems.length === 0) return;
+    try {
+      showToast(`Uploading ${fileItems.length} file(s)…`);
+      let uploadedCount = 0;
+      for (const item of fileItems) {
+        const file = item.file || item;
+        const relPath =
+          item.relPath || file.webkitRelativePath || file.name || 'uploaded-file';
+        const qs = new URLSearchParams({
+          root: rootPath,
+          targetDir,
+          relPath,
+        });
+        const headers = { 'Content-Type': 'application/octet-stream' };
+        if (sidecarToken) {
+          headers['X-Sidecar-Token'] = sidecarToken;
+        }
+        const buf = await file.arrayBuffer();
+        const res = await fetch(`/api/upload?${qs.toString()}`, {
+          method: 'POST',
+          headers,
+          body: buf,
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(data.error || `HTTP ${res.status}`);
+        }
+        uploadedCount += data.count || 1;
+      }
+      getExpandedSet(rootPath).add(targetDir);
+      showToast(`Uploaded ${uploadedCount} file(s)`);
+      await refreshExpandedDirectories(rootPath, { silent: true });
+    } catch (err) {
+      showToast(`Upload failed: ${err.message}`);
+    }
+  }
+
+  async function collectDroppedFiles(dataTransfer) {
+    const items = dataTransfer?.items ? [...dataTransfer.items] : [];
+    const entries = items
+      .map((it) => (typeof it.webkitGetAsEntry === 'function' ? it.webkitGetAsEntry() : null))
+      .filter(Boolean);
+
+    if (entries.length === 0) {
+      return [...(dataTransfer?.files || [])].map((f) => ({
+        file: f,
+        relPath: f.webkitRelativePath || f.name,
+      }));
+    }
+
+    const collected = [];
+    async function walkEntry(entry, prefix = '') {
+      if (entry.isFile) {
+        const file = await new Promise((resolve, reject) => entry.file(resolve, reject));
+        collected.push({
+          file,
+          relPath: prefix ? `${prefix}/${file.name}` : file.name,
+        });
+      } else if (entry.isDirectory) {
+        const reader = entry.createReader();
+        const children = [];
+        while (true) {
+          const batch = await new Promise((resolve, reject) =>
+            reader.readEntries(resolve, reject)
+          );
+          if (!batch || batch.length === 0) break;
+          children.push(...batch);
+        }
+        const nextPrefix = prefix ? `${prefix}/${entry.name}` : entry.name;
+        for (const child of children) {
+          await walkEntry(child, nextPrefix);
+        }
+      }
+    }
+
+    for (const entry of entries) {
+      await walkEntry(entry, '');
+    }
+    return collected;
   }
 
   function renderHeaderAndRoots() {
@@ -436,11 +537,14 @@
         ? `
           <button type="button" class="row-btn" data-action="new-file" data-path="${esc(entry.path)}" title="New file in ${esc(entry.name)}">+File</button>
           <button type="button" class="row-btn" data-action="new-folder" data-path="${esc(entry.path)}" title="New folder in ${esc(entry.name)}">+Dir</button>
+          <button type="button" class="row-btn" data-action="upload-to-dir" data-path="${esc(entry.path)}" title="Upload files into ${esc(entry.name)}">&#8593;Up</button>
+          <button type="button" class="row-btn" data-action="download" data-path="${esc(entry.path)}" title="Download folder as .zip">Dl</button>
           <button type="button" class="row-btn" data-action="copy-path" data-path="${esc(relCopyPath)}" title="Copy relative path">Copy</button>
           <button type="button" class="row-btn" data-action="rename" data-path="${esc(entry.path)}" data-name="${esc(entry.name)}" title="Rename">Ren</button>
           <button type="button" class="row-btn danger" data-action="delete" data-path="${esc(entry.path)}" data-name="${esc(entry.name)}" title="Delete">Del</button>`
         : `
           <button type="button" class="row-btn" data-action="open-file" data-path="${esc(entry.path)}" data-uri="${esc(entry.uri)}" title="Open in native File Preview">Open</button>
+          <button type="button" class="row-btn" data-action="download" data-path="${esc(entry.path)}" title="Download file">Dl</button>
           <button type="button" class="row-btn" data-action="copy-path" data-path="${esc(relCopyPath)}" title="Copy relative path">Copy</button>
           <button type="button" class="row-btn" data-action="rename" data-path="${esc(entry.path)}" data-name="${esc(entry.name)}" title="Rename">Ren</button>
           <button type="button" class="row-btn danger" data-action="delete" data-path="${esc(entry.path)}" data-name="${esc(entry.name)}" title="Delete">Del</button>`;
@@ -517,6 +621,7 @@
               ${!entry.isDirectory ? `<span class="file-size">${esc(formatBytes(entry.size))}</span>` : ''}
               <div class="row-actions">
                 ${!entry.isDirectory ? `<button type="button" class="row-btn" data-action="open-file" data-path="${esc(entry.path)}" data-uri="${esc(entry.uri)}">Open</button>` : ''}
+                <button type="button" class="row-btn" data-action="download" data-path="${esc(entry.path)}" title="Download">Dl</button>
                 <button type="button" class="row-btn" data-action="reveal-in-tree" data-path="${esc(entry.path)}" data-isdir="${entry.isDirectory ? '1' : '0'}">Reveal</button>
                 <button type="button" class="row-btn" data-action="copy-path" data-path="${esc(entry.relPath || entry.name)}" title="Copy relative path">Copy</button>
               </div>
@@ -843,6 +948,15 @@
         openInNativeFileViewer(targetPath, actionBtn.dataset.uri || '');
         return;
       }
+      if (action === 'download') {
+        await triggerDownload(state.selectedRootPath, targetPath);
+        return;
+      }
+      if (action === 'upload-to-dir') {
+        pendingUploadTargetDir = targetPath || getActiveParentDirForCreate();
+        $('upload-files-input')?.click();
+        return;
+      }
       if (action === 'copy-root-path') {
         try {
           await navigator.clipboard.writeText(targetPath);
@@ -987,6 +1101,77 @@
       initialValue: '',
     };
     renderMutationBar();
+  });
+
+  $('btn-upload-files')?.addEventListener('click', () => {
+    if (!state.selectedRootPath) return;
+    pendingUploadTargetDir = getActiveParentDirForCreate();
+    $('upload-files-input')?.click();
+  });
+
+  $('btn-upload-folder')?.addEventListener('click', () => {
+    if (!state.selectedRootPath) return;
+    pendingUploadTargetDir = getActiveParentDirForCreate();
+    $('upload-folder-input')?.click();
+  });
+
+  $('upload-files-input')?.addEventListener('change', async (e) => {
+    const files = [...(e.target.files || [])];
+    e.target.value = '';
+    if (!files.length || !state.selectedRootPath) return;
+    const targetDir = pendingUploadTargetDir || getActiveParentDirForCreate();
+    await uploadFileObjects(state.selectedRootPath, targetDir, files);
+  });
+
+  $('upload-folder-input')?.addEventListener('change', async (e) => {
+    const files = [...(e.target.files || [])];
+    e.target.value = '';
+    if (!files.length || !state.selectedRootPath) return;
+    const targetDir = pendingUploadTargetDir || getActiveParentDirForCreate();
+    await uploadFileObjects(state.selectedRootPath, targetDir, files);
+  });
+
+  let dragDepth = 0;
+  document.addEventListener('dragenter', (e) => {
+    if (!state.selectedRootPath || !e.dataTransfer?.types?.includes('Files')) return;
+    e.preventDefault();
+    dragDepth++;
+    $('drop-overlay')?.classList.remove('hidden');
+  });
+
+  document.addEventListener('dragover', (e) => {
+    if (!state.selectedRootPath || !e.dataTransfer?.types?.includes('Files')) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  });
+
+  document.addEventListener('dragleave', (e) => {
+    if (!state.selectedRootPath) return;
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (dragDepth === 0) {
+      $('drop-overlay')?.classList.add('hidden');
+    }
+  });
+
+  document.addEventListener('drop', async (e) => {
+    dragDepth = 0;
+    $('drop-overlay')?.classList.add('hidden');
+    if (!state.selectedRootPath || !e.dataTransfer?.files?.length) return;
+    e.preventDefault();
+    const rowEl = e.target.closest('[data-row-path]');
+    let targetDir = getActiveParentDirForCreate();
+    if (rowEl) {
+      const rowPath = rowEl.dataset.rowPath;
+      const isDir = rowEl.dataset.rowIsdir === '1';
+      if (isDir && rowPath) {
+        targetDir = rowPath;
+      } else if (rowPath) {
+        const idx = rowPath.lastIndexOf('/');
+        if (idx > 0) targetDir = rowPath.slice(0, idx);
+      }
+    }
+    const items = await collectDroppedFiles(e.dataTransfer);
+    await uploadFileObjects(state.selectedRootPath, targetDir, items);
   });
 
   $('btn-collapse-all')?.addEventListener('click', () => {

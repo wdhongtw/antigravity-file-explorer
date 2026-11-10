@@ -394,6 +394,31 @@ body {
   outline: 1px solid var(--primary, #3b82f6);
 }
 
+/* Drag & Drop Upload Overlay */
+.drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(59, 130, 246, 0.14);
+  backdrop-filter: blur(1.5px);
+  pointer-events: none;
+}
+
+.drop-card {
+  padding: 14px 20px;
+  border-radius: 8px;
+  border: 2px dashed var(--primary, #3b82f6);
+  background: var(--card, #1c1c21);
+  color: var(--foreground, #e4e4e7);
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
 /* Floating Modal Overlay for File Mutations (Zero Layout Shift) */
 .mutation-overlay {
   position: fixed;

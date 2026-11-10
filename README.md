@@ -8,6 +8,7 @@ Interactive UI plugin and MCP toolset (`folder_*`) providing both a **per-sessio
   - **Global State**: Persisted independently of any conversation, defaulting to the user's home folder (`~`).
   - **Folder Bookmarks & Recents**: Bookmark/unbookmark frequently visited directories, rename bookmarks, and jump between bookmarked or recently visited folders from the left rail.
   - **File & Folder Operations**: Create files/folders, rename, duplicate, copy/cut/paste across directories, delete (single or multi-select), and toggle executable permissions (`chmod +x` or octal mode).
+  - **File & Folder Upload / Download**: Upload multiple files (`↑ Upload`), upload entire directory trees (`↑ Folder`), or drag-and-drop files and folders directly into the explorer; download individual files directly or automatically bundle directories and multi-item selections into a `.zip` archive (`↓ Download`).
   - **Archive Compression & Extraction**: Compress selected files/folders into `.zip` or `.tar.gz` archives, preview archive contents, and extract `.zip` / `.tar.*` archives directly or into a dedicated subfolder.
   - **Sortable Table & Collapsible Inspector**: Sort by `Name`, `Size`, or `Modified` date; inspect file/folder metadata, calculate recursive directory sizes, compute SHA-256 checksums, and read inline text previews without opening an AuxPane editor tab on click.
 - **Session AuxPane File Explorer (`/`, `SIDECAR_UI_ENTRYPOINT_AUX_PANE`)**:
@@ -33,7 +34,8 @@ Interactive UI plugin and MCP toolset (`folder_*`) providing both a **per-sessio
     fork point while keeping subsequent changes isolated.
 - **Expandable Tree View, Search & Scoped File Mutations**:
   - Expand/collapse directories inline, filter/search recursively across the
-    selected root folder, toggle hidden dotfiles (`.*`), copy paths, and
-    create/rename/delete files and folders via an inline prompt bar.
+    selected root folder, toggle hidden dotfiles (`.*`), copy paths, upload
+    files/folders (via picker or drag-and-drop), download files or folders (as
+    `.zip`), and create/rename/delete files and folders via a modal overlay.
   - Clicking any file opens it directly in the built-in File Preview (`tabType:
     'fileView'`).

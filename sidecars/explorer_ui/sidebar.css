@@ -392,6 +392,31 @@ body {
   border-color: color-mix(in srgb, var(--fe-del-fg) 40%, transparent);
 }
 
+/* Drag & Drop Upload Overlay */
+.sb-drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(59, 130, 246, 0.14);
+  backdrop-filter: blur(1.5px);
+  pointer-events: none;
+}
+
+.sb-drop-card {
+  padding: 16px 24px;
+  border-radius: 10px;
+  border: 2px dashed var(--primary, #3b82f6);
+  background: var(--card, #1c1c21);
+  color: var(--foreground, #e4e4e7);
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4);
+}
+
 /* Floating Modal Overlay for Prompts (Zero Layout Shift) */
 .sb-prompt-overlay {
   position: fixed;
@@ -642,7 +667,7 @@ body {
 .sb-table-header {
   flex-shrink: 0;
   display: grid;
-  grid-template-columns: 28px minmax(180px, 1fr) 86px 96px 136px 210px;
+  grid-template-columns: 28px minmax(180px, 1fr) 86px 96px 136px 240px;
   align-items: center;
   gap: 8px;
   padding: 6px 12px;
@@ -693,7 +718,7 @@ body {
 
 .sb-file-row {
   display: grid;
-  grid-template-columns: 28px minmax(180px, 1fr) 86px 96px 136px 210px;
+  grid-template-columns: 28px minmax(180px, 1fr) 86px 96px 136px 240px;
   align-items: center;
   gap: 8px;
   height: 28px;

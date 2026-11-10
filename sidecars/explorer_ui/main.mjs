@@ -23,9 +23,11 @@ import {
   extractArchiveInRoot,
   inspectPathInRoot,
   listDirectoryInRoot,
+  prepareDownloadInRoot,
   renamePathInRoot,
   searchFilesInRoot,
   transferItemsInRoot,
+  uploadFilesInRoot,
 } from '../../lib/file_service.mjs';
 import { getSessionFolderState } from '../../lib/session_folders.mjs';
 import { SidebarStore } from '../../lib/sidebar_store.mjs';
@@ -43,9 +45,132 @@ const STATIC_ASSETS = {
 const app = new RawSidecarServer();
 const sidebarStore = new SidebarStore();
 
-app.page('/', () => readFileSync(join(__dirname, 'index.html'), 'utf-8'));
-app.page('/fullscreen', () => readFileSync(join(__dirname, 'index.html'), 'utf-8'));
-app.page('/sidebar', () => readFileSync(join(__dirname, 'sidebar.html'), 'utf-8'));
+function renderPageWithToken(htmlFile) {
+  const rawHtml = readFileSync(join(__dirname, htmlFile), 'utf-8');
+  const uiToken = (process.env.ANTIGRAVITY_SIDECAR_UI_TOKEN || '').trim();
+  const tokenScript = `<script>window.__SIDECAR_TOKEN__=${JSON.stringify(uiToken)};</script>`;
+  if (rawHtml.includes('</head>')) {
+    return rawHtml.replace('</head>', `  ${tokenScript}\n</head>`);
+  }
+  return `${tokenScript}\n${rawHtml}`;
+}
+
+function escapeHtml(str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+app.page('/', () => renderPageWithToken('index.html'));
+app.page('/fullscreen', () => renderPageWithToken('index.html'));
+app.page('/sidebar', () => renderPageWithToken('sidebar.html'));
+
+app.page('/api/download-page', async (url) => {
+  const root = url.searchParams.get('root') || '/';
+  const paths = url.searchParams.getAll('path').filter(Boolean);
+  const token =
+    url.searchParams.get('token') ||
+    (process.env.ANTIGRAVITY_SIDECAR_UI_TOKEN || '').trim();
+
+  const dlParams = new URLSearchParams();
+  dlParams.set('root', root);
+  for (const p of paths) {
+    dlParams.append('path', p);
+  }
+  if (token) {
+    dlParams.set('token', token);
+  }
+  const downloadHref = `/api/download?${dlParams.toString()}`;
+  const label =
+    paths.length === 1
+      ? paths[0].split('/').filter(Boolean).pop() || 'download'
+      : `${paths.length} items (.zip)`;
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Downloading ${escapeHtml(label)}…</title>
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #18181b;
+      color: #f4f4f5;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    .card {
+      padding: 20px 24px;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: #27272a;
+      max-width: 420px;
+      text-align: center;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+    }
+    .title {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      word-break: break-all;
+    }
+    .sub {
+      font-size: 12px;
+      color: #a1a1aa;
+      margin-bottom: 16px;
+    }
+    .actions {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      text-decoration: none;
+      cursor: pointer;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      background: #3b82f6;
+      color: #ffffff;
+    }
+    .btn-ghost {
+      background: transparent;
+      color: #d4d4d8;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="title">Downloading ${escapeHtml(label)}</div>
+    <div class="sub">Your download should begin automatically. This tab will close shortly.</div>
+    <div class="actions">
+      <a id="dl-link" class="btn" href="${escapeHtml(downloadHref)}" download>Download Now</a>
+      <button type="button" class="btn btn-ghost" onclick="window.close()">Close Tab</button>
+    </div>
+  </div>
+  <script>
+    (function () {
+      const link = document.getElementById('dl-link');
+      if (link) {
+        link.click();
+      }
+      setTimeout(function () {
+        try { window.close(); } catch (_) {}
+      }, 2000);
+    })();
+  </script>
+</body>
+</html>`;
+});
 
 for (const [route, [file, contentType]] of Object.entries(STATIC_ASSETS)) {
   app.api(
@@ -301,8 +426,56 @@ app.api(
   'POST'
 );
 
+app.api(
+  '/api/upload',
+  async (data) => {
+    const root = data.root || '/';
+    const targetDir = data.targetDir || root;
+    const overwrite = data.overwrite === 'true' || data.overwrite === true;
+
+    if (Buffer.isBuffer(data._rawBuffer)) {
+      const relPath = data.relPath || data.name || '';
+      return await uploadFilesInRoot(
+        root,
+        targetDir,
+        [{ relPath, data: data._rawBuffer }],
+        { overwrite }
+      );
+    }
+
+    return await uploadFilesInRoot(root, targetDir, data.files || [], {
+      overwrite,
+    });
+  },
+  'POST'
+);
+
+async function handleDownloadRequest(data) {
+  const root = data.root || '/';
+  const targets =
+    Array.isArray(data.paths) && data.paths.length > 0
+      ? data.paths
+      : data.path || '';
+  const dl = await prepareDownloadInRoot(root, targets);
+  const asciiName = dl.filename.replace(/[^\x20-\x7E]|["\\]/g, '_');
+  const encodedName = encodeURIComponent(dl.filename);
+  return new HttpResponse(dl.buffer, {
+    contentType: dl.contentType,
+    headers: {
+      'Content-Disposition': `attachment; filename="${asciiName}"; filename*=UTF-8''${encodedName}`,
+      'X-Download-Filename': encodedName,
+      'Content-Length': String(dl.size),
+      'Cache-Control': 'no-store',
+    },
+  });
+}
+
+app.api('/api/download', handleDownloadRequest, 'GET');
+app.api('/api/download', handleDownloadRequest, 'POST');
+
 for (const watched of [
   join(__dirname, 'main.mjs'),
+  join(__dirname, '../../lib/sidecar_http.mjs'),
   join(__dirname, '../../lib/session_folders.mjs'),
   join(__dirname, '../../lib/sidebar_store.mjs'),
   join(__dirname, '../../lib/file_service.mjs'),

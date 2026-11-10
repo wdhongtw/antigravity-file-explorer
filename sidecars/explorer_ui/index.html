@@ -39,6 +39,10 @@
         <div class="active-root-actions">
           <button id="btn-new-file" type="button" class="ghost-btn sm" title="Create new file in selected folder">+ File</button>
           <button id="btn-new-folder" type="button" class="ghost-btn sm" title="Create new folder in selected folder">+ Folder</button>
+          <button id="btn-upload-files" type="button" class="ghost-btn sm" title="Upload files into selected folder">&#8593; Upload</button>
+          <button id="btn-upload-folder" type="button" class="ghost-btn sm" title="Upload a folder into selected folder">&#8593; Folder</button>
+          <input id="upload-files-input" type="file" multiple class="hidden">
+          <input id="upload-folder-input" type="file" webkitdirectory directory multiple class="hidden">
           <button id="btn-collapse-all" type="button" class="ghost-btn sm collapse-all-btn" title="Collapse all expanded folders">Collapse All</button>
         </div>
       </div>
@@ -49,6 +53,11 @@
         <div class="empty-state">Loading session root folders…</div>
       </div>
     </main>
+
+    <!-- Drag & Drop Upload Overlay (Zero Layout Shift) -->
+    <div id="drop-overlay" class="drop-overlay hidden" aria-hidden="true">
+      <div class="drop-card">Drop files or folders here to upload</div>
+    </div>
 
     <!-- Floating Modal Overlay for Create / Rename / Delete (Zero Layout Shift) -->
     <div id="mutation-bar" class="mutation-overlay hidden" role="dialog" aria-modal="true" aria-label="File action prompt"></div>

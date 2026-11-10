@@ -85,12 +85,17 @@
         <div class="sb-action-group">
           <button id="btn-new-file" type="button" class="sb-btn sm" title="Create a new empty file in current folder">+ File</button>
           <button id="btn-new-folder" type="button" class="sb-btn sm" title="Create a new folder in current folder">+ Folder</button>
+          <button id="btn-upload-files" type="button" class="sb-btn sm" title="Upload files into current folder">&#8593; Upload</button>
+          <button id="btn-upload-folder" type="button" class="sb-btn sm" title="Upload a folder into current folder">&#8593; Folder</button>
+          <input id="upload-files-input" type="file" multiple class="hidden">
+          <input id="upload-folder-input" type="file" webkitdirectory directory multiple class="hidden">
           <span class="sb-divider"></span>
           <button id="btn-copy-sel" type="button" class="sb-btn sm" disabled title="Copy selected items to clipboard">Copy</button>
           <button id="btn-cut-sel" type="button" class="sb-btn sm" disabled title="Cut (move) selected items to clipboard">Cut</button>
           <button id="btn-paste" type="button" class="sb-btn primary sm hidden" title="Paste clipboard items into current folder">Paste Here</button>
           <button id="btn-clear-clip" type="button" class="sb-btn sm hidden" title="Clear clipboard">Clear Clip</button>
           <span class="sb-divider"></span>
+          <button id="btn-download-sel" type="button" class="sb-btn sm" disabled title="Download selected file or bundle as .zip">&#8595; Download</button>
           <button id="btn-zip-sel" type="button" class="sb-btn sm" disabled title="Compress selected items into .zip or .tar.gz">Zip / Archive</button>
           <button id="btn-delete-sel" type="button" class="sb-btn danger sm" disabled title="Delete selected items">Delete</button>
         </div>
@@ -163,6 +168,11 @@
           <div class="sb-empty">Select a file or folder to inspect its metadata, permissions, archive contents, or text preview.</div>
         </div>
       </aside>
+    </div>
+
+    <!-- Drag & Drop Upload Overlay (Zero Layout Shift) -->
+    <div id="drop-overlay" class="sb-drop-overlay hidden" aria-hidden="true">
+      <div class="sb-drop-card">Drop files or folders here to upload into current directory</div>
     </div>
 
     <!-- Floating Modal Overlay for Create / Rename / Zip / Unzip / Chmod / Delete / Bookmark (Zero Layout Shift) -->
